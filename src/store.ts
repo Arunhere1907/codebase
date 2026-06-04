@@ -177,6 +177,10 @@ const defaultProblemLogs: ProblemLog[] = [
   }
 ];
 
+// DEPRECATED: This function generated fake sample stats for demo purposes
+// Now we fetch real data from platform APIs via Vercel serverless functions
+// Keeping this commented for reference only
+/*
 // Helper to generate realistic stats depending on the username configured
 const generateSampleStats = (usernames: UserSettings['usernames']): DashboardStats => {
   const { codeforces, leetcode, codechef, atcoder, github } = usernames;
@@ -280,6 +284,7 @@ const generateSampleStats = (usernames: UserSettings['usernames']): DashboardSta
     lastUpdated: new Date().toISOString()
   };
 };
+*/
 
 const defaultPortfolio: PortfolioData = {
   name: 'Arun Kumar',
@@ -344,11 +349,11 @@ const defaultPortfolio: PortfolioData = {
 
 const initialSettings: UserSettings = {
   usernames: {
-    codeforces: 'arun_here',
-    leetcode: 'arun_here',
-    codechef: 'arun_chef',
-    atcoder: 'arun_at',
-    github: 'arun-github'
+    codeforces: '',
+    leetcode: '',
+    codechef: '',
+    atcoder: '',
+    github: ''
   },
   theme: 'dark',
   contestReminders: true,
@@ -580,43 +585,23 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       const state = get();
       const updated = { ...state.settings, ...newSettings };
       
-      const freshStats = generateSampleStats(updated.usernames);
-      const totalSolvedVal = 
-        (freshStats.codeforces?.solvedCount || 0) + 
-        (freshStats.leetcode?.totalSolved || 0) + 
-        (freshStats.codechef?.solvedCount || 0) + 
-        (freshStats.atcoder?.solvedCount || 0);
-
-      const updatedPortfolio: PortfolioData = {
-        ...state.portfolio,
-        cpHighlights: {
-          maxCodeforcesRating: freshStats.codeforces?.maxRating || state.portfolio.cpHighlights.maxCodeforcesRating,
-          leetcodeStreak: freshStats.leetcode?.streak || state.portfolio.cpHighlights.leetcodeStreak,
-          totalSolved: totalSolvedVal > 0 ? totalSolvedVal : state.portfolio.cpHighlights.totalSolved
-        }
-      };
-
       const user = state.user;
       if (user) {
         try {
           const uid = user.uid;
           await setDoc(doc(db, 'users', uid), { ...updated, id: uid }, { merge: true });
-          await setDoc(doc(db, 'users', uid, 'portfolio', 'main'), updatedPortfolio, { merge: true });
           
-          localStorage.setItem('codebase_stats', JSON.stringify(freshStats));
-          set({ stats: freshStats });
+          // Trigger stats refresh with new usernames
+          await get().refreshStats(true);
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
         }
       } else {
         localStorage.setItem('codebase_settings', JSON.stringify(updated));
-        localStorage.setItem('codebase_stats', JSON.stringify(freshStats));
-        localStorage.setItem('codebase_portfolio', JSON.stringify(updatedPortfolio));
-        set({ 
-          settings: updated, 
-          stats: freshStats,
-          portfolio: updatedPortfolio
-        });
+        set({ settings: updated });
+        
+        // Trigger stats refresh with new usernames
+        await get().refreshStats(true);
       }
     },
 
@@ -772,27 +757,109 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
 
       set((state) => ({ loading: { ...state.loading, stats: true } }));
 
-      // Wait 1200ms to simulate a real highly interactive fetch process
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
       try {
-        // Build rich statistics pulling from current settings
-        const freshStats = generateSampleStats(settings.usernames);
+        const { usernames } = settings;
+        
+        // Fetch stats in parallel for configured platforms only
+        const fetchPromises: Array<Promise<any>> = [];
+        
+        // Determine base URL for API calls (production vs local dev)
+        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        const apiBase = isProduction ? '/api' : 'http://localhost:3000/api';
+
+        let cfStats: CodeforcesStats | null = null;
+        let lcStats: LeetCodeStats | null = null;
+        let ccStats: CodeChefStats | null = null;
+        let acStats: AtCoderStats | null = null;
+        let ghStats: GitHubStats | null = null;
+
+        // Fetch Codeforces if configured
+        if (usernames.codeforces) {
+          fetchPromises.push(
+            axios.get(`${apiBase}/codeforces?handle=${usernames.codeforces}`, { timeout: 15000 })
+              .then(res => { cfStats = res.data; })
+              .catch(err => {
+                console.warn('Codeforces fetch failed:', err.message);
+                cfStats = null;
+              })
+          );
+        }
+
+        // Fetch LeetCode if configured
+        if (usernames.leetcode) {
+          fetchPromises.push(
+            axios.get(`${apiBase}/leetcode?handle=${usernames.leetcode}`, { timeout: 15000 })
+              .then(res => { lcStats = res.data; })
+              .catch(err => {
+                console.warn('LeetCode fetch failed:', err.message);
+                lcStats = null;
+              })
+          );
+        }
+
+        // Fetch CodeChef if configured
+        if (usernames.codechef) {
+          fetchPromises.push(
+            axios.get(`${apiBase}/codechef?handle=${usernames.codechef}`, { timeout: 15000 })
+              .then(res => { ccStats = res.data; })
+              .catch(err => {
+                console.warn('CodeChef fetch failed:', err.message);
+                ccStats = null;
+              })
+          );
+        }
+
+        // Fetch AtCoder if configured
+        if (usernames.atcoder) {
+          fetchPromises.push(
+            axios.get(`${apiBase}/atcoder?handle=${usernames.atcoder}`, { timeout: 15000 })
+              .then(res => { acStats = res.data; })
+              .catch(err => {
+                console.warn('AtCoder fetch failed:', err.message);
+                acStats = null;
+              })
+          );
+        }
+
+        // Fetch GitHub if configured
+        if (usernames.github) {
+          fetchPromises.push(
+            axios.get(`${apiBase}/github?username=${usernames.github}`, { timeout: 15000 })
+              .then(res => { ghStats = res.data; })
+              .catch(err => {
+                console.warn('GitHub fetch failed:', err.message);
+                ghStats = null;
+              })
+          );
+        }
+
+        // Wait for all configured platforms to complete
+        await Promise.allSettled(fetchPromises);
+
+        const freshStats: DashboardStats = {
+          codeforces: cfStats,
+          leetcode: lcStats,
+          codechef: ccStats,
+          atcoder: acStats,
+          github: ghStats,
+          lastUpdated: new Date().toISOString()
+        };
+
         localStorage.setItem('codebase_stats', JSON.stringify(freshStats));
 
         // Update portfolio aggregates with updated statistics
         const totalSolvedVal = 
-          (freshStats.codeforces?.solvedCount || 0) + 
-          (freshStats.leetcode?.totalSolved || 0) + 
-          (freshStats.codechef?.solvedCount || 0) + 
-          (freshStats.atcoder?.solvedCount || 0);
+          (cfStats?.solvedCount || 0) + 
+          (lcStats?.totalSolved || 0) + 
+          (ccStats?.solvedCount || 0) + 
+          (acStats?.solvedCount || 0);
 
         set((state) => {
           const updatedPortfolio: PortfolioData = {
             ...state.portfolio,
             cpHighlights: {
-              maxCodeforcesRating: freshStats.codeforces?.maxRating || state.portfolio.cpHighlights.maxCodeforcesRating,
-              leetcodeStreak: freshStats.leetcode?.streak || state.portfolio.cpHighlights.leetcodeStreak,
+              maxCodeforcesRating: cfStats?.maxRating || state.portfolio.cpHighlights.maxCodeforcesRating,
+              leetcodeStreak: lcStats?.streak || state.portfolio.cpHighlights.leetcodeStreak,
               totalSolved: totalSolvedVal > 0 ? totalSolvedVal : state.portfolio.cpHighlights.totalSolved
             }
           };
@@ -805,7 +872,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
           };
         });
       } catch (err) {
-        // Fallback to current stats style
+        console.error('Stats refresh error:', err);
         set((state) => ({ loading: { ...state.loading, stats: false } }));
       }
     },

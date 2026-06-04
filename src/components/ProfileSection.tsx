@@ -106,7 +106,7 @@ export default function ProfileSection() {
     setActivePlatform(activePlatform === platform ? null : platform);
   };
 
-  const platformsList: Array<{ id: TabPlatform; name: string; handle: string; rating: number | string; rank: string; solved: number; color: string; hoverBorder: string; badgeColor: string }> = [
+  const platformsList: Array<{ id: TabPlatform; name: string; handle: string; rating: number | string; rank: string; solved: number; color: string; hoverBorder: string; badgeColor: string; configured: boolean }> = [
     {
       id: 'Codeforces',
       name: 'Codeforces',
@@ -116,40 +116,44 @@ export default function ProfileSection() {
       solved: cfData?.solvedCount || 0,
       color: 'border-l-4 border-l-red-500',
       hoverBorder: 'hover:border-red-500/30',
-      badgeColor: 'bg-red-500/10 text-red-500'
+      badgeColor: 'bg-red-500/10 text-red-500',
+      configured: !!settings.usernames.codeforces
     },
     {
       id: 'LeetCode',
       name: 'LeetCode',
       handle: lcData?.handle || settings.usernames.leetcode || 'Not Configured',
       rating: lcData?.contestRating || 'Unrated',
-      rank: lcData?.badges[0] || 'Knight',
+      rank: lcData?.badges[0] || 'N/A',
       solved: lcData?.totalSolved || 0,
       color: 'border-l-4 border-l-amber-500',
       hoverBorder: 'hover:border-amber-500/30',
-      badgeColor: 'bg-amber-500/10 text-amber-500'
+      badgeColor: 'bg-amber-500/10 text-amber-500',
+      configured: !!settings.usernames.leetcode
     },
     {
       id: 'CodeChef',
       name: 'CodeChef',
       handle: ccData?.handle || settings.usernames.codechef || 'Not Configured',
       rating: ccData?.rating || 'Unrated',
-      rank: ccData?.stars || '1★',
+      rank: ccData?.stars || 'N/A',
       solved: ccData?.solvedCount || 0,
       color: 'border-l-4 border-l-emerald-500',
       hoverBorder: 'hover:border-emerald-500/30',
-      badgeColor: 'bg-emerald-500/10 text-emerald-500'
+      badgeColor: 'bg-emerald-500/10 text-emerald-500',
+      configured: !!settings.usernames.codechef
     },
     {
       id: 'AtCoder',
       name: 'AtCoder',
       handle: acData?.handle || settings.usernames.atcoder || 'Not Configured',
       rating: acData?.rating || 'Unrated',
-      rank: `Rank ${acData?.rank || '-'}`,
+      rank: acData?.rank ? `Rank ${acData.rank}` : 'N/A',
       solved: acData?.solvedCount || 0,
       color: 'border-l-4 border-l-indigo-500',
       hoverBorder: 'hover:border-indigo-500/30',
-      badgeColor: 'bg-indigo-500/10 text-indigo-500'
+      badgeColor: 'bg-indigo-500/10 text-indigo-500',
+      configured: !!settings.usernames.atcoder
     }
   ];
 
@@ -203,13 +207,15 @@ export default function ProfileSection() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {platformsList.map((platform) => {
               const works = activePlatform === platform.id;
+              const isConfigured = platform.configured;
+              
               return (
                 <div
                   key={platform.id}
                   id={`profile-card-${platform.id}`}
-                  onClick={() => handleCardClick(platform.id)}
-                  className={`p-4 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl cursor-pointer transition-all duration-200 ${platform.color} ${platform.hoverBorder} ${
-                    works ? 'ring-1 ring-blue-500 dark:ring-blue-400' : 'hover:-translate-y-0.5 shadow-sm'
+                  onClick={() => isConfigured ? handleCardClick(platform.id) : null}
+                  className={`p-4 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl ${isConfigured ? 'cursor-pointer' : 'cursor-default opacity-60'} transition-all duration-200 ${platform.color} ${platform.hoverBorder} ${
+                    works ? 'ring-1 ring-blue-500 dark:ring-blue-400' : isConfigured ? 'hover:-translate-y-0.5 shadow-sm' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -218,7 +224,7 @@ export default function ProfileSection() {
                         {platform.name}
                       </span>
                       <span className="text-sm font-sans font-medium text-gray-900 dark:text-white mt-0.5 block font-mono truncate max-w-[140px]">
-                        @{platform.handle}
+                        {isConfigured ? `@${platform.handle}` : 'Not configured'}
                       </span>
                     </div>
                     <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded-full uppercase tracking-wider ${platform.badgeColor}`}>
@@ -226,24 +232,42 @@ export default function ProfileSection() {
                     </span>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 dark:border-white/10">
-                    <div>
-                      <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 block">Rating</span>
-                      <span className="text-sm font-mono font-bold text-gray-950 dark:text-white">{platform.rating}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 block">Solved</span>
-                      <span className="text-sm font-mono font-semibold text-blue-500 dark:text-blue-400">{platform.solved}</span>
-                    </div>
-                  </div>
+                  {isConfigured ? (
+                    <>
+                      <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 dark:border-white/10">
+                        <div>
+                          <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 block">Rating</span>
+                          <span className="text-sm font-mono font-bold text-gray-950 dark:text-white">{platform.rating}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 block">Solved</span>
+                          <span className="text-sm font-mono font-semibold text-blue-500 dark:text-blue-400">{platform.solved}</span>
+                        </div>
+                      </div>
 
-                  <div className="mt-3 flex items-center justify-center text-[11px] font-sans font-medium text-blue-500 dark:text-blue-400 hover:underline pt-1">
-                    {works ? (
-                      <span className="flex items-center gap-1">Collapse details <ChevronUp size={12} /></span>
-                    ) : (
-                      <span className="flex items-center gap-1">Expand deep statistics <ChevronDown size={12} /></span>
-                    )}
-                  </div>
+                      <div className="mt-3 flex items-center justify-center text-[11px] font-sans font-medium text-blue-500 dark:text-blue-400 hover:underline pt-1">
+                        {works ? (
+                          <span className="flex items-center gap-1">Collapse details <ChevronUp size={12} /></span>
+                        ) : (
+                          <span className="flex items-center gap-1">Expand deep statistics <ChevronDown size={12} /></span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-4 pt-3 border-t border-gray-50 dark:border-white/10 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Navigate to settings
+                          const setTab = (window as any).__codebaseStore?.getState?.()?.setTab;
+                          if (setTab) setTab('settings');
+                        }}
+                        className="text-xs font-sans font-medium text-blue-500 dark:text-blue-400 hover:underline"
+                      >
+                        Configure in Settings →
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

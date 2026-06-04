@@ -39,6 +39,11 @@ export default function App() {
     markReminderAsNotified
   } = useCodeBaseStore();
 
+  // Expose store globally for navigation from ProfileSection
+  useEffect(() => {
+    (window as any).__codebaseStore = useCodeBaseStore;
+  }, []);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [guestMode, setGuestMode] = useState(() => {
     return localStorage.getItem('codebase_guest_mode') === 'true';
