@@ -22,7 +22,8 @@ CodeBase is a comprehensive developer productivity platform designed for competi
 
 ### Key Highlights
 
-- **Multi-Platform Integration**: Track stats from Codeforces, LeetCode, CodeChef, AtCoder, HackerRank, and GitHub
+- **Real Platform Data**: Fetches live statistics from Codeforces, LeetCode, CodeChef, AtCoder, and GitHub APIs
+- **Optional Platform Configuration**: Only configure the platforms you use - others show empty states
 - **Real-Time Contest Calendar**: Never miss a contest with live countdowns and reminder notifications
 - **Problem Log Tracker**: Document your problem-solving journey with detailed analytics
 - **Public Portfolio**: Generate a shareable developer portfolio showcasing your competitive programming achievements
@@ -58,11 +59,13 @@ CodeBase is a comprehensive developer productivity platform designed for competi
 - Past performance history with ranks and rating deltas
 
 ### Profile Management
-- Manage usernames across multiple platforms
-- Real-time API sync with platform profiles
+- Configure usernames for Codeforces, LeetCode, CodeChef, AtCoder, and GitHub
+- Real-time API sync with platform profiles via Vercel serverless functions
 - Historical rating graphs and submission analytics
 - Badge and achievement display
 - Contribution streak tracking
+- Empty states for unconfigured platforms with easy setup links
+- Automatic data caching with configurable TTL (5/15/30/60 minutes)
 
 ### Public Portfolio
 - Generate a beautiful public-facing developer portfolio
@@ -87,7 +90,8 @@ CodeBase is a comprehensive developer productivity platform designed for competi
 
 - **Node.js** (v18 or higher)
 - **Firebase Account** with Firestore enabled
-- **Gemini API Key** (optional - reserved for future AI features)
+- **Vercel Account** (for deploying API routes) - Free tier sufficient
+- **GitHub Token** (optional - Vercel auto-provides for GitHub-linked projects)
 
 ### Installation
 
@@ -117,20 +121,27 @@ CodeBase is a comprehensive developer productivity platform designed for competi
    }
    ```
 
-4. **Set up environment variables** (Optional)
+4. **Set up environment variables**
    
    Copy `.env.example` to `.env.local`:
    ```bash
    copy .env.example .env.local
    ```
    
-   Update `.env.local` with your credentials:
+   Update `.env.local` with your Firebase credentials:
    ```env
-   GEMINI_API_KEY="your_gemini_api_key"  # Optional - not currently used
-   APP_URL="http://localhost:3000"
+   VITE_FIREBASE_API_KEY=your_firebase_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+   VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+   VITE_FIREBASE_APP_ID=your_firebase_app_id
+   
+   # Optional: GitHub token for higher rate limits (auto-provided by Vercel)
+   GITHUB_TOKEN=your_github_token
    ```
    
-   > **Note**: The Gemini API key is reserved for future AI-powered features and is not required for current functionality.
+   > **Note**: All platform APIs (Codeforces, LeetCode, CodeChef, AtCoder) use public endpoints and don't require API keys.
 
 5. **Deploy Firestore Security Rules**
    ```bash
