@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "user": {
+      "title": "User Profile and Settings",
+      "description": "User preferences and system-wide settings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID matching Auth UID" },
+        "usernames": { "type": "object", "description": "Map of platform usernames" },
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "contestReminders": { "type": "boolean" },
+        "refreshInterval": { "type": "number" },
+        "defaultReminderTime": { "type": "number", "description": "Default offset in minutes to trigger alerts" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "usernames", "theme", "contestReminders", "refreshInterval"]
+    },
+    "problemLog": {
+      "title": "Problem Solve Log",
+      "description": "Competitive coding problem solved or attempted by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "platform": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "topicTags": { "type": "array" },
+        "status": { "type": "string" },
+        "timeTaken": { "type": "number" },
+        "notes": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "platform", "difficulty", "status", "timeTaken", "date"]
+    },
+    "portfolio": {
+      "title": "Developer Portfolio",
+      "description": "Developer landing page configurations.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "tagline": { "type": "string" },
+        "aboutMe": { "type": "string" },
+        "skills": { "type": "array" },
+        "projects": { "type": "array" },
+        "education": { "type": "array" },
+        "cpHighlights": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "title", "aboutMe"]
+    },
+    "reminder": {
+      "title": "Contest Reminder",
+      "description": "A scheduled reminder for an upcoming competitive coding contest.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "contestId": { "type": "string" },
+        "contestName": { "type": "string" },
+        "contestStartTime": { "type": "string" },
+        "platform": { "type": "string" },
+        "reminderTimeOffset": { "type": "number" },
+        "notified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "contestId", "contestName", "contestStartTime", "platform", "reminderTimeOffset", "notified"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "Global user settings and preferences."
+    },
+    "/users/{userId}/problemLogs/{logId}": {
+      "schema": "problemLog",
+      "description": "User's compiled list of problem solves."
+    },
+    "/users/{userId}/portfolio/main": {
+      "schema": "portfolio",
+      "description": "User's public cp developer portfolio."
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": "reminder",
+      "description": "Scheduled contest reminders set by the user."
+    }
+  }
+}

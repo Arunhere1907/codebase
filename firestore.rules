@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PRIMITIVE GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY SPECIFIC VALIDATION HELPERS ---
+
+    function isValidUser(data, uId) {
+      return data.id == uId &&
+             data.usernames is map &&
+             data.theme is string && (data.theme == 'light' || data.theme == 'dark') &&
+             data.contestReminders is bool &&
+             data.refreshInterval is number && data.refreshInterval >= 1 && data.refreshInterval <= 1440 &&
+             data.keys().hasAll(['id', 'usernames', 'theme', 'contestReminders', 'refreshInterval']) &&
+             (data.keys().size() == 5 || (data.keys().size() == 6 && data.defaultReminderTime is number));
+    }
+
+    function isValidProblemLog(data, uId) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId == uId &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.platform is string && data.platform.size() > 0 && data.platform.size() <= 50 &&
+             data.difficulty is string && (data.difficulty == 'Easy' || data.difficulty == 'Medium' || data.difficulty == 'Hard') &&
+             data.status is string && (data.status == 'Solved' || data.status == 'Attempted' || data.status == 'Revisit') &&
+             data.timeTaken is number && data.timeTaken >= 0 &&
+             data.date is string && data.date.size() == 10 &&
+             data.topicTags is list && data.topicTags.size() <= 15 &&
+             data.notes is string && data.notes.size() <= 5000 &&
+             data.keys().hasAll(['id', 'userId', 'name', 'platform', 'difficulty', 'status', 'timeTaken', 'notes', 'topicTags', 'date']) &&
+             data.keys().size() == 10;
+     }
+
+     function isValidPortfolio(data, uId) {
+       return data.userId == uId &&
+              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+              data.title is string && data.title.size() <= 150 &&
+              data.tagline is string && data.tagline.size() <= 300 &&
+              data.aboutMe is string && data.aboutMe.size() <= 3000 &&
+              data.skills is list && data.skills.size() <= 30 &&
+              data.projects is list && data.projects.size() <= 20 &&
+              data.education is list && data.education.size() <= 10 &&
+              data.cpHighlights is map &&
+              data.keys().hasAll(['userId', 'name', 'title', 'tagline', 'aboutMe', 'skills', 'projects', 'education', 'cpHighlights']) &&
+              data.keys().size() == 9;
+     }
+
+     function isValidReminder(data, uId) {
+       return data.id is string && data.id.size() <= 128 &&
+              data.userId == uId &&
+              data.contestId is string && data.contestId.size() <= 128 &&
+              data.contestName is string && data.contestName.size() > 0 && data.contestName.size() <= 200 &&
+              data.contestStartTime is string && data.contestStartTime.size() <= 100 &&
+              data.platform is string && data.platform.size() <= 50 &&
+              data.reminderTimeOffset is number && data.reminderTimeOffset >= 0 &&
+              data.notified is bool &&
+              data.keys().hasAll(['id', 'userId', 'contestId', 'contestName', 'contestStartTime', 'platform', 'reminderTimeOffset', 'notified']) &&
+              data.keys().size() == 8;
+     }
+
+    // --- COLLECTION BOUNDARIES ---
+
+    // 1. Users settings document
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Blanket user queries are strictly prohibited
+
+      allow create: if isOwner(userId) && isVerified() && isValidUser(incoming(), userId);
+      allow update: if isOwner(userId) && isVerified() && isValidUser(incoming(), userId);
+      allow delete: if isOwner(userId);
+      
+      // 2. Problem logs subcollection
+      match /problemLogs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId); // Query enforcer evaluates resource owner implicitly
+
+        allow create: if isOwner(userId) && isVerified() && isValidId(logId) && isValidProblemLog(incoming(), userId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(logId) && isValidProblemLog(incoming(), userId) &&
+                        incoming().id == existing().id && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+
+      // 3. User Portfolio subcollection document
+      match /portfolio/{docId} {
+        // Anyone can read a public developer portfolio during Public Preview mode!
+        allow get: if (isOwner(userId) || docId == 'main') && isValidId(docId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) && isVerified() && isValidId(docId) && isValidPortfolio(incoming(), userId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(docId) && isValidPortfolio(incoming(), userId) &&
+                        incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(docId);
+      }
+
+      // 4. Reminders subcollection
+      match /reminders/{reminderId} {
+        allow get: if isOwner(userId) && isValidId(reminderId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) && isVerified() && isValidId(reminderId) && isValidReminder(incoming(), userId);
+        allow update: if isOwner(userId) && isVerified() && isValidId(reminderId) && isValidReminder(incoming(), userId) &&
+                        incoming().id == existing().id && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(reminderId);
+      }
+    }
+  }
+}

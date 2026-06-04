@@ -1,0 +1,6 @@
+{
+  "name": "CodeBase",
+  "description": "A professional, self-hosted developer dashboard and competitive programming tracker with a comprehensive stats dashboard, problem log, contest calendar, and public developer portfolio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
