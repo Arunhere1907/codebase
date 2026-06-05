@@ -60,30 +60,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let contributionsThisWeek = 0;
     let totalContributionsLastYear = 0;
     let streak = 0;
+    const dailyCommits: Record<string, number> = {};
 
     try {
-      const eventsResponse = await axios.get(
-        `https://api.github.com/users/${ghUser}/events/public?per_page=100`,
-        { headers, timeout: 10000 }
-      );
+      const events: Array<{ type: string; created_at: string; payload?: { commits?: unknown[] } }> = [];
+      const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
 
-      const events = eventsResponse.data || [];
+      for (let page = 1; page <= 10; page++) {
+        const eventsResponse = await axios.get(
+          `https://api.github.com/users/${ghUser}/events/public`,
+          { headers, timeout: 10000, params: { per_page: 100, page } }
+        );
+        const batch = eventsResponse.data || [];
+        if (!batch.length) break;
+        events.push(...batch);
+        const oldest = new Date(batch[batch.length - 1].created_at).getTime();
+        if (oldest < oneYearAgo || batch.length < 100) break;
+      }
+
       const now = new Date();
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
 
-      events.forEach((event: { type: string; created_at: string }) => {
+      events.forEach((event) => {
         const eventDate = new Date(event.created_at);
+        const dayKey = eventDate.toISOString().slice(0, 10);
+
+        if (event.type === 'PushEvent') {
+          const commitCount = event.payload?.commits?.length || 1;
+          if (eventDate.getTime() >= oneYearAgo) {
+            dailyCommits[dayKey] = (dailyCommits[dayKey] || 0) + commitCount;
+          }
+        }
+
         if (['PushEvent', 'PullRequestEvent', 'IssuesEvent', 'IssueCommentEvent'].includes(event.type)) {
-          if (eventDate >= oneYearAgo) totalContributionsLastYear++;
+          if (eventDate >= new Date(oneYearAgo)) totalContributionsLastYear++;
           if (eventDate >= oneWeekAgo) contributionsThisWeek++;
         }
       });
 
       const eventDates = new Set(
         events
-          .filter((e: { type: string }) => ['PushEvent', 'PullRequestEvent'].includes(e.type))
-          .map((e: { created_at: string }) => new Date(e.created_at).toISOString().split('T')[0])
+          .filter((e) => e.type === 'PushEvent')
+          .map((e) => new Date(e.created_at).toISOString().split('T')[0])
       );
 
       let currentDate = new Date();
@@ -105,6 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       contributionsThisWeek,
       streak,
       totalContributionsLastYear: totalContributionsLastYear || user.public_repos,
+      dailyCommits,
       topRepos,
     });
   } catch (error: unknown) {

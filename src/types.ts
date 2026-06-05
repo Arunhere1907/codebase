@@ -9,6 +9,9 @@ export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
 export type ProblemStatus = 'Solved' | 'Attempted' | 'Revisit';
 
+/** yyyy-MM-dd → submission count for that calendar day */
+export type DailyCountMap = Record<string, number>;
+
 export interface CodeforcesStats {
   handle: string;
   rating: number;
@@ -16,6 +19,7 @@ export interface CodeforcesStats {
   rank: string;
   maxRank: string;
   solvedCount: number;
+  dailySubmissions?: DailyCountMap;
   history: Array<{ date: string; rating: number; rank?: number; contestName?: string }>;
   recentSubmissions: Array<{
     id: string | number;
@@ -35,6 +39,7 @@ export interface LeetCodeStats {
   streak: number;
   contestRating: number;
   badges: string[];
+  dailySubmissions?: DailyCountMap;
   history: Array<{ date: string; rating: number }>;
 }
 
@@ -62,6 +67,7 @@ export interface GitHubStats {
   contributionsThisWeek: number;
   streak: number;
   totalContributionsLastYear: number;
+  dailyCommits?: DailyCountMap;
   topRepos: Array<{
     name: string;
     stars: number;

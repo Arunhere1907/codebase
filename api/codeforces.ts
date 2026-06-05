@@ -66,6 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       language: string;
       time: string;
     }> = [];
+    const dailySubmissions: Record<string, number> = {};
+    const activityCutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
 
     try {
       const submissions = await cfGet<CodeforcesSubmission[]>(
@@ -73,6 +75,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
 
       submissions.forEach((sub) => {
+        const ms = sub.creationTimeSeconds * 1000;
+        if (ms >= activityCutoff) {
+          const dayKey = new Date(ms).toISOString().slice(0, 10);
+          dailySubmissions[dayKey] = (dailySubmissions[dayKey] || 0) + 1;
+        }
         if (sub.verdict === 'OK') {
           const key = sub.problem.contestId && sub.problem.index
             ? `${sub.problem.contestId}${sub.problem.index}`
@@ -133,6 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rank: user.rank || 'Unrated',
       maxRank: user.maxRank || user.rank || 'Unrated',
       solvedCount,
+      dailySubmissions,
       history,
       recentSubmissions,
     });

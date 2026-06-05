@@ -26,6 +26,7 @@ import {
 import { useCodeBaseStore } from '../store';
 import { format, subDays, isWithinInterval, parseISO } from 'date-fns';
 import UserAvatar, { getUserDisplayInfo } from './UserAvatar';
+import SubmissionHeatmap from './SubmissionHeatmap';
 
 const QUICK_NAV = [
   { id: 'home' as const, label: 'Overview', icon: Home },
@@ -608,6 +609,13 @@ export default function OverviewSection() {
           )}
         </div>
       </div>
+
+      <SubmissionHeatmap
+        stats={stats}
+        problemLogs={problemLogs}
+        settings={settings}
+        loading={loading.stats}
+      />
 
       {/* Recent submissions */}
       <div className="p-5 bg-white dark:bg-sleek-card border border-gray-150 dark:border-white/10 rounded-2xl space-y-4 shadow-sm">

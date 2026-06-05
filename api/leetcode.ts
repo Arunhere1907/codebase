@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             acSubmissionNum { difficulty count }
           }
           profile { ranking reputation starRating }
-          userCalendar { streak totalActiveDays }
+          userCalendar { streak totalActiveDays submissionCalendar }
         }
         userContestRanking(username: $username) { rating topPercentage }
         userContestRankingHistory(username: $username) {
@@ -77,6 +77,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const totalSolved = easySolved + mediumSolved + hardSolved;
     const streak = user.userCalendar?.streak || 0;
+    const dailySubmissions: Record<string, number> = {};
+    try {
+      const rawCalendar = user.userCalendar?.submissionCalendar;
+      if (rawCalendar) {
+        const parsed = JSON.parse(rawCalendar) as Record<string, number>;
+        const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
+        Object.entries(parsed).forEach(([ts, count]) => {
+          const ms = Number(ts) * 1000;
+          if (Number.isNaN(ms) || ms < cutoff) return;
+          const key = new Date(ms).toISOString().slice(0, 10);
+          dailySubmissions[key] = (dailySubmissions[key] || 0) + Number(count);
+        });
+      }
+    } catch {
+      // submissionCalendar optional
+    }
+
     const contestRating = data.userContestRanking?.rating
       ? Math.round(data.userContestRanking.rating)
       : 0;
@@ -111,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       streak,
       contestRating,
       badges,
+      dailySubmissions,
       history,
     });
   } catch (error: unknown) {
