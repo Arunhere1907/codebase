@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Settings, 
@@ -19,31 +19,43 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useCodeBaseStore } from '../store';
+import UserAvatar from './UserAvatar';
 
 export default function SettingsSection() {
   const { settings, updateSettings, problemLogs, portfolio } = useCodeBaseStore();
   const [isSaved, setIsSaved] = useState(false);
 
-  // Form handle bindings
   const [cfHandle, setCfHandle] = useState(settings.usernames.codeforces);
   const [lcHandle, setLcHandle] = useState(settings.usernames.leetcode);
   const [ccHandle, setCcHandle] = useState(settings.usernames.codechef);
   const [acHandle, setAcHandle] = useState(settings.usernames.atcoder);
   const [ghHandle, setGhHandle] = useState(settings.usernames.github);
-
+  const [displayName, setDisplayName] = useState(settings.displayName || '');
   const [reminders, setReminders] = useState(settings.contestReminders);
   const [refreshPeriod, setRefreshPeriod] = useState(settings.refreshInterval);
+
+  useEffect(() => {
+    setCfHandle(settings.usernames.codeforces);
+    setLcHandle(settings.usernames.leetcode);
+    setCcHandle(settings.usernames.codechef);
+    setAcHandle(settings.usernames.atcoder);
+    setGhHandle(settings.usernames.github);
+    setDisplayName(settings.displayName || '');
+    setReminders(settings.contestReminders);
+    setRefreshPeriod(settings.refreshInterval);
+  }, [settings]);
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings({
       usernames: {
-        codeforces: cfHandle,
-        leetcode: lcHandle,
-        codechef: ccHandle,
-        atcoder: acHandle,
-        github: ghHandle
+        codeforces: cfHandle.trim(),
+        leetcode: lcHandle.trim(),
+        codechef: ccHandle.trim(),
+        atcoder: acHandle.trim(),
+        github: ghHandle.trim()
       },
+      displayName: displayName.trim() || undefined,
       contestReminders: reminders,
       refreshInterval: Number(refreshPeriod) || 15
     });
@@ -90,6 +102,38 @@ export default function SettingsSection() {
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">
+
+        {/* Profile & avatar */}
+        <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-4 shadow-sm">
+          <h2 className="text-sm font-sans font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <User size={16} className="text-blue-500" /> Profile & Avatar
+          </h2>
+          <div className="flex items-center gap-4">
+            <UserAvatar size="lg" editable />
+            <div className="flex-1 space-y-3">
+              <div className="space-y-1">
+                <label className="text-gray-500 dark:text-white/40 font-semibold text-xs">Display Name</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your name (shown in header)"
+                  className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <p className="text-[10px] text-gray-400">Click the avatar to upload a photo (max 500 KB). Google sign-in photos are used by default.</p>
+              {settings.avatarUrl && (
+                <button
+                  type="button"
+                  onClick={() => updateSettings({ avatarUrl: undefined })}
+                  className="text-[10px] text-red-400 hover:text-red-500 font-semibold"
+                >
+                  Remove custom avatar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
         
         {/* Handles configurations */}
         <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-4 shadow-sm">

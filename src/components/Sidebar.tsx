@@ -21,6 +21,8 @@ import {
   CloudLightning
 } from 'lucide-react';
 import { useCodeBaseStore } from '../store';
+import UserAvatar, { getUserDisplayInfo } from './UserAvatar';
+import UserAvatar, { getUserDisplayInfo } from './UserAvatar';
 
 export default function Sidebar() {
   const { 
@@ -33,7 +35,9 @@ export default function Sidebar() {
     portfolioMode,
     setPortfolioMode,
     user,
-    logout
+    logout,
+    portfolio,
+    refreshStats
   } = useCodeBaseStore();
 
   const menuItems = [
@@ -151,18 +155,21 @@ export default function Sidebar() {
         {/* Quiet footer utilities */}
         <div className="px-3 pt-2.5 space-y-0.5 border-t border-gray-100/50 dark:border-white/5 mt-3">
           <button
-            onClick={() => alert("Launching documentation page helper.")}
+            onClick={() => setTab('settings')}
             className="w-full flex items-center gap-3 py-1.5 px-3 rounded-lg text-left text-xs font-sans font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
           >
             <BookOpen size={14} className="text-gray-400 dark:text-zinc-500 shrink-0" />
-            {!sidebarCollapsed && <span className="truncate">Documentation</span>}
+            {!sidebarCollapsed && <span className="truncate">Platform Setup Guide</span>}
           </button>
           <button
-            onClick={() => alert("Connecting live developer support ticket.")}
+            onClick={() => {
+              refreshStats(true);
+              setTab('profiles');
+            }}
             className="w-full flex items-center gap-3 py-1.5 px-3 rounded-lg text-left text-xs font-sans font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
           >
             <CloudLightning size={14} className="text-gray-400 dark:text-zinc-500 shrink-0" />
-            {!sidebarCollapsed && <span className="truncate">Support</span>}
+            {!sidebarCollapsed && <span className="truncate">Sync Platform Data</span>}
           </button>
         </div>
       </div>
@@ -193,13 +200,11 @@ export default function Sidebar() {
           {user ? (
             <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-transparent">
               <div className="flex items-center gap-2 overflow-hidden">
-                <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center font-bold font-sans text-white text-[10px] uppercase shrink-0">
-                  {user.email ? user.email[0] : 'U'}
-                </div>
+                <UserAvatar size="sm" />
                 {!sidebarCollapsed && (
                   <div className="overflow-hidden">
                     <p className="text-[10px] font-sans font-bold text-gray-900 dark:text-white truncate">
-                      {user.email?.split('@')[0]}
+                      {getUserDisplayInfo(settings, user, portfolio.name).displayName}
                     </p>
                     <p className="text-[8px] font-mono text-emerald-500 font-semibold uppercase tracking-tight">
                       Synced Cloud

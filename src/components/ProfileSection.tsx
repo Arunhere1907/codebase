@@ -46,7 +46,7 @@ import { SkeletonCard } from './Skeleton';
 type TabPlatform = 'Codeforces' | 'LeetCode' | 'CodeChef' | 'AtCoder' | 'GitHub';
 
 export default function ProfileSection() {
-  const { stats, loading, refreshStats, settings } = useCodeBaseStore();
+  const { stats, loading, refreshStats, settings, fetchErrors } = useCodeBaseStore();
   const [activePlatform, setActivePlatform] = useState<TabPlatform | null>('Codeforces');
 
   useEffect(() => {
@@ -208,6 +208,8 @@ export default function ProfileSection() {
             {platformsList.map((platform) => {
               const works = activePlatform === platform.id;
               const isConfigured = platform.configured;
+              const errorKey = platform.id.toLowerCase() as keyof typeof fetchErrors;
+              const fetchError = fetchErrors[errorKey];
               
               return (
                 <div
@@ -234,6 +236,11 @@ export default function ProfileSection() {
 
                   {isConfigured ? (
                     <>
+                      {fetchError && (
+                        <p className="mt-2 text-[10px] text-amber-500 font-mono">
+                          Fetch failed: {fetchError}. Check handle or try Refresh.
+                        </p>
+                      )}
                       <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 dark:border-white/10">
                         <div>
                           <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 block">Rating</span>

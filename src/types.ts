@@ -146,7 +146,11 @@ export interface UserSettings {
   contestReminders: boolean;
   refreshInterval: number; // in minutes
   defaultReminderTime?: number;
+  avatarUrl?: string;
+  displayName?: string;
 }
+
+export type PlatformFetchErrors = Partial<Record<'codeforces' | 'leetcode' | 'codechef' | 'atcoder' | 'github', string>>;
 
 export interface Reminder {
   id: string;

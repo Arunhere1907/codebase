@@ -19,7 +19,8 @@ import {
   CodeChefStats,
   AtCoderStats,
   GitHubStats,
-  Reminder
+  Reminder,
+  PlatformFetchErrors
 } from './types';
 import { 
   onAuthStateChanged,
@@ -49,6 +50,7 @@ interface CodeBaseState {
   problemLogs: ProblemLog[];
   contests: Contest[];
   stats: DashboardStats | null;
+  fetchErrors: PlatformFetchErrors;
   portfolio: PortfolioData;
   user: FirebaseUser | null;
   authLoading: boolean;
@@ -419,6 +421,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
     problemLogs: getStoredProblemLogs(),
     contests: [],
     stats: getStoredStats(),
+    fetchErrors: {},
     portfolio: getStoredPortfolio(),
     reminders: getStoredReminders(),
     user: null,
@@ -763,9 +766,8 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
         // Fetch stats in parallel for configured platforms only
         const fetchPromises: Array<Promise<any>> = [];
         
-        // Determine base URL for API calls (production vs local dev)
-        const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-        const apiBase = isProduction ? '/api' : 'http://localhost:3000/api';
+        const apiBase = '/api';
+        const fetchErrors: PlatformFetchErrors = {};
 
         let cfStats: CodeforcesStats | null = null;
         let lcStats: LeetCodeStats | null = null;
@@ -773,64 +775,37 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
         let acStats: AtCoderStats | null = null;
         let ghStats: GitHubStats | null = null;
 
-        // Fetch Codeforces if configured
+        const fetchPlatform = (
+          platform: keyof PlatformFetchErrors,
+          url: string,
+          setter: (data: any) => void
+        ) => {
+          fetchPromises.push(
+            axios.get(url, { timeout: 15000 })
+              .then(res => { setter(res.data); })
+              .catch(err => {
+                const msg = err.response?.data?.error || err.message || 'Fetch failed';
+                console.warn(`${platform} fetch failed:`, msg);
+                fetchErrors[platform] = msg;
+                setter(null);
+              })
+          );
+        };
+
         if (usernames.codeforces) {
-          fetchPromises.push(
-            axios.get(`${apiBase}/codeforces?handle=${usernames.codeforces}`, { timeout: 15000 })
-              .then(res => { cfStats = res.data; })
-              .catch(err => {
-                console.warn('Codeforces fetch failed:', err.message);
-                cfStats = null;
-              })
-          );
+          fetchPlatform('codeforces', `${apiBase}/codeforces?handle=${encodeURIComponent(usernames.codeforces)}`, (d) => { cfStats = d; });
         }
-
-        // Fetch LeetCode if configured
         if (usernames.leetcode) {
-          fetchPromises.push(
-            axios.get(`${apiBase}/leetcode?handle=${usernames.leetcode}`, { timeout: 15000 })
-              .then(res => { lcStats = res.data; })
-              .catch(err => {
-                console.warn('LeetCode fetch failed:', err.message);
-                lcStats = null;
-              })
-          );
+          fetchPlatform('leetcode', `${apiBase}/leetcode?handle=${encodeURIComponent(usernames.leetcode)}`, (d) => { lcStats = d; });
         }
-
-        // Fetch CodeChef if configured
         if (usernames.codechef) {
-          fetchPromises.push(
-            axios.get(`${apiBase}/codechef?handle=${usernames.codechef}`, { timeout: 15000 })
-              .then(res => { ccStats = res.data; })
-              .catch(err => {
-                console.warn('CodeChef fetch failed:', err.message);
-                ccStats = null;
-              })
-          );
+          fetchPlatform('codechef', `${apiBase}/codechef?handle=${encodeURIComponent(usernames.codechef)}`, (d) => { ccStats = d; });
         }
-
-        // Fetch AtCoder if configured
         if (usernames.atcoder) {
-          fetchPromises.push(
-            axios.get(`${apiBase}/atcoder?handle=${usernames.atcoder}`, { timeout: 15000 })
-              .then(res => { acStats = res.data; })
-              .catch(err => {
-                console.warn('AtCoder fetch failed:', err.message);
-                acStats = null;
-              })
-          );
+          fetchPlatform('atcoder', `${apiBase}/atcoder?handle=${encodeURIComponent(usernames.atcoder)}`, (d) => { acStats = d; });
         }
-
-        // Fetch GitHub if configured
         if (usernames.github) {
-          fetchPromises.push(
-            axios.get(`${apiBase}/github?username=${usernames.github}`, { timeout: 15000 })
-              .then(res => { ghStats = res.data; })
-              .catch(err => {
-                console.warn('GitHub fetch failed:', err.message);
-                ghStats = null;
-              })
-          );
+          fetchPlatform('github', `${apiBase}/github?username=${encodeURIComponent(usernames.github)}`, (d) => { ghStats = d; });
         }
 
         // Wait for all configured platforms to complete
@@ -867,6 +842,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
           
           return {
             stats: freshStats,
+            fetchErrors,
             portfolio: updatedPortfolio,
             loading: { ...state.loading, stats: false }
           };

@@ -18,33 +18,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Use Kenkoooo's AtCoder Problems API (free community API)
-    const userInfoResponse = await axios.get(`https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions?user=${handle}&from_second=0`, {
-      timeout: 15000
-    });
-
-    const submissions = userInfoResponse.data || [];
-
-    if (submissions.length === 0) {
-      return res.status(404).json({ error: 'User not found or no submissions' });
-    }
-
-    // Count solved problems (AC submissions)
-    const solvedProblems = new Set<string>();
-    submissions.forEach((sub: any) => {
-      if (sub.result === 'AC') {
-        solvedProblems.add(sub.problem_id);
-      }
-    });
-
-    const solvedCount = solvedProblems.size;
-
-    // Get user rating info from Kenkoooo API
+    // Fetch rating history first — works even for users with zero submissions
     const ratingResponse = await axios.get(`https://kenkoooo.com/atcoder/atcoder-api/v3/user/rating/history?user=${handle}`, {
       timeout: 10000
     });
 
     const ratingHistory = ratingResponse.data || [];
+
+    // Count solved problems from submissions (optional — user may have none)
+    let solvedCount = 0;
+    try {
+      const userInfoResponse = await axios.get(`https://kenkoooo.com/atcoder/atcoder-api/v3/user/submissions?user=${handle}&from_second=0`, {
+        timeout: 15000
+      });
+      const submissions = userInfoResponse.data || [];
+      const solvedProblems = new Set<string>();
+      submissions.forEach((sub: any) => {
+        if (sub.result === 'AC') {
+          solvedProblems.add(sub.problem_id);
+        }
+      });
+      solvedCount = solvedProblems.size;
+    } catch {
+      solvedCount = 0;
+    }
+
+    if (ratingHistory.length === 0 && solvedCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     let currentRating = 0;
     let highestRating = 0;

@@ -119,8 +119,12 @@ export default function App() {
   // Reminder schedule polling detector (evaluates every 4s)
   useEffect(() => {
     const checkReminders = () => {
+      if (!settings.contestReminders) return;
+
       const now = Date.now();
       
+      if (!settings.contestReminders) return;
+
       reminders.forEach((rem) => {
         if (rem.notified) return;
 
@@ -160,7 +164,7 @@ export default function App() {
 
     const interval = setInterval(checkReminders, 4000);
     return () => clearInterval(interval);
-  }, [reminders, markReminderAsNotified]);
+  }, [reminders, markReminderAsNotified, settings.contestReminders]);
 
   // Remove toast from list
   const dismissToast = (id: string) => {
