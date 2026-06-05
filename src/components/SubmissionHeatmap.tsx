@@ -4,6 +4,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { format, subDays, startOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
 import axios from 'axios';
 import { Grid3X3 } from 'lucide-react';
@@ -129,7 +130,11 @@ function getIntensityLevel(total: number, maxTotal: number): number {
 
 export default function SubmissionHeatmap({ stats, problemLogs, settings, loading }: SubmissionHeatmapProps) {
   const [hovered, setHovered] = useState<DayActivityBreakdown | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [tooltipAnchor, setTooltipAnchor] = useState<{
+    x: number;
+    y: number;
+    placeAbove: boolean;
+  } | null>(null);
   const [fetchedDaily, setFetchedDaily] = useState<FetchedDaily>({});
   const [fetchingDaily, setFetchingDaily] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -251,17 +256,27 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
   const handleCellEnter = (day: DayActivityBreakdown, e: React.MouseEvent<HTMLButtonElement>) => {
     setHovered(day);
     const rect = e.currentTarget.getBoundingClientRect();
-    const container = gridRef.current?.getBoundingClientRect();
-    if (container) {
-      setTooltipPos({
-        x: rect.left - container.left + rect.width / 2,
-        y: rect.top - container.top,
-      });
-    }
+    const centerX = rect.left + rect.width / 2;
+    const margin = 12;
+    const clampedX = Math.min(
+      window.innerWidth - margin,
+      Math.max(margin, centerX)
+    );
+    const placeAbove = rect.top > 200;
+    setTooltipAnchor({
+      x: clampedX,
+      y: placeAbove ? rect.top : rect.bottom,
+      placeAbove,
+    });
+  };
+
+  const handleCellLeave = () => {
+    setHovered(null);
+    setTooltipAnchor(null);
   };
 
   const tooltipRows = hovered
-    ? PLATFORM_ROWS.filter(({ key }) => hovered[key] > 0 || key === 'tracker')
+    ? PLATFORM_ROWS.filter(({ key }) => hovered[key] > 0)
     : [];
 
   const hasConfiguredHandle = Object.values(usernames).some((h) => h?.trim());
@@ -299,36 +314,53 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
           <span className="text-xs text-gray-400 animate-pulse">Loading heatmap…</span>
         </div>
       ) : (
-        <div ref={gridRef} className="relative overflow-x-auto pb-1">
-          {hovered && (
-            <div
-              className="pointer-events-none absolute z-30 min-w-[200px] -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-xl dark:shadow-2xl px-3 py-2.5"
-              style={{ left: tooltipPos.x, top: tooltipPos.y }}
-            >
-              <p className="text-[11px] font-sans font-bold text-gray-900 dark:text-white mb-2">
-                {format(parseISO(hovered.date), 'EEE, MMM d, yyyy')}
-              </p>
-              <div className="space-y-1.5">
-                {tooltipRows.length === 0 ? (
-                  <p className="text-[10px] text-gray-500 dark:text-white/40">No activity this day</p>
-                ) : (
-                  tooltipRows.map(({ key, label, dotClass }) => (
-                    <div key={key} className="flex items-center justify-between gap-4 text-[10px]">
-                      <span className="flex items-center gap-1.5 text-gray-600 dark:text-white/60">
-                        <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
-                        {label}
-                      </span>
-                      <strong className="font-mono text-gray-900 dark:text-white">{hovered[key]}</strong>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/10 flex justify-between text-[10px]">
-                <span className="text-gray-500 dark:text-white/40">Total</span>
-                <strong className="font-mono text-blue-600 dark:text-blue-400">{hovered.total}</strong>
-              </div>
-            </div>
-          )}
+        <div ref={gridRef} className="relative overflow-x-auto overflow-y-visible pb-1 pt-2">
+          {hovered &&
+            tooltipAnchor &&
+            createPortal(
+              <div
+                role="tooltip"
+                className="pointer-events-none fixed z-[9999] w-[min(240px,calc(100vw-24px))] rounded-xl border border-gray-200 dark:border-white/15 bg-white dark:bg-zinc-900 shadow-2xl px-3.5 py-3"
+                style={{
+                  left: tooltipAnchor.x,
+                  top: tooltipAnchor.y,
+                  transform: tooltipAnchor.placeAbove
+                    ? 'translate(-50%, calc(-100% - 10px))'
+                    : 'translate(-50%, 10px)',
+                }}
+              >
+                <p className="text-[11px] font-sans font-bold text-gray-900 dark:text-white mb-2.5 whitespace-nowrap">
+                  {format(parseISO(hovered.date), 'EEE, MMM d, yyyy')}
+                </p>
+                <div className="space-y-2">
+                  {tooltipRows.length === 0 ? (
+                    <p className="text-[10px] text-gray-500 dark:text-white/40">No activity this day</p>
+                  ) : (
+                    tooltipRows.map(({ key, label, dotClass }) => (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between gap-6 text-[11px] leading-none"
+                      >
+                        <span className="flex items-center gap-2 text-gray-600 dark:text-white/70 shrink-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
+                          {label}
+                        </span>
+                        <strong className="font-mono text-gray-900 dark:text-white tabular-nums">
+                          {hovered[key]}
+                        </strong>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-white/10 flex justify-between gap-6 text-[11px]">
+                  <span className="text-gray-500 dark:text-white/40 font-semibold">Total</span>
+                  <strong className="font-mono text-blue-600 dark:text-blue-400 tabular-nums">
+                    {hovered.total}
+                  </strong>
+                </div>
+              </div>,
+              document.body
+            )}
 
           <div className="inline-flex gap-[3px] min-w-max pl-8">
             <div className="flex flex-col justify-between text-[9px] font-mono text-gray-400 dark:text-white/30 pr-1 py-[2px] h-[98px] shrink-0">
@@ -381,7 +413,7 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
                               : `${LEVEL_CLASSES[level]} hover:ring-2 hover:ring-blue-400/50 hover:scale-110`
                           }`}
                           onMouseEnter={(e) => !isFuture && handleCellEnter(breakdown, e)}
-                          onMouseLeave={() => setHovered(null)}
+                          onMouseLeave={handleCellLeave}
                         />
                       );
                     })}
