@@ -1,8 +1,23 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
+const LC_HEADERS = {
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Referer': 'https://leetcode.com',
+  'Origin': 'https://leetcode.com',
+};
+
+async function lcGraphql(query: string, variables: Record<string, string>) {
+  const response = await axios.post(
+    'https://leetcode.com/graphql',
+    { query, variables },
+    { timeout: 15000, headers: LC_HEADERS }
+  );
+  return response.data;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -17,51 +32,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing or invalid handle parameter' });
   }
 
+  const username = handle.trim();
+
   try {
-    // Use LeetCode GraphQL API
-    const graphqlQuery = {
-      query: `
-        query getUserProfile($username: String!) {
-          matchedUser(username: $username) {
-            username
-            submitStats {
-              acSubmissionNum {
-                difficulty
-                count
-              }
-            }
-            profile {
-              ranking
-              reputation
-              starRating
-            }
-            userCalendar {
-              streak
-            }
+    const profileData = await lcGraphql(
+      `query getUserProfile($username: String!) {
+        matchedUser(username: $username) {
+          username
+          submitStats {
+            acSubmissionNum { difficulty count }
           }
-          recentAcSubmissionList(username: $username, limit: 10) {
-            title
-            timestamp
-          }
+          profile { ranking reputation starRating }
+          userCalendar { streak totalActiveDays }
         }
-      `,
-      variables: {
-        username: handle
-      }
-    };
+        userContestRanking(username: $username) { rating topPercentage }
+        userContestRankingHistory(username: $username) {
+          attended
+          rating
+          ranking
+          contest { title startTime }
+        }
+      }`,
+      { username }
+    );
 
-    const response = await axios.post('https://leetcode.com/graphql', graphqlQuery, {
-      timeout: 15000,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0'
-      }
-    });
-
-    const data = response.data?.data;
+    const data = profileData?.data;
 
     if (!data?.matchedUser) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: `LeetCode user "${username}" not found` });
     }
 
     const user = data.matchedUser;
@@ -71,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let mediumSolved = 0;
     let hardSolved = 0;
 
-    submitStats.forEach((stat: any) => {
+    submitStats.forEach((stat: { difficulty: string; count: number }) => {
       if (stat.difficulty === 'Easy') easySolved = stat.count;
       if (stat.difficulty === 'Medium') mediumSolved = stat.count;
       if (stat.difficulty === 'Hard') hardSolved = stat.count;
@@ -79,65 +77,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const totalSolved = easySolved + mediumSolved + hardSolved;
     const streak = user.userCalendar?.streak || 0;
+    const contestRating = data.userContestRanking?.rating
+      ? Math.round(data.userContestRanking.rating)
+      : 0;
 
-    // Try to get contest rating (may not be available for all users)
-    let contestRating = 1500; // Default
-    try {
-      const contestQuery = {
-        query: `
-          query userContestRankingInfo($username: String!) {
-            userContestRanking(username: $username) {
-              rating
-              topPercentage
-            }
-          }
-        `,
-        variables: {
-          username: handle
-        }
-      };
-
-      const contestResponse = await axios.post('https://leetcode.com/graphql', contestQuery, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (contestResponse.data?.data?.userContestRanking?.rating) {
-        contestRating = Math.round(contestResponse.data.data.userContestRanking.rating);
-      }
-    } catch (e) {
-      // Contest rating not available, use default
-    }
-
-    // Determine badge based on rating and stats
     const badges: string[] = [];
     if (totalSolved >= 500) badges.push('Knight');
     if (streak >= 30) badges.push('30-day Streak');
     if (hardSolved >= 50) badges.push('Hard Problem Solver');
 
-    // Generate rating history (estimated based on total solved)
     const history: Array<{ date: string; rating: number }> = [];
-    const now = new Date();
-
-    for (let i = 5; i >= 1; i--) {
-      const monthsAgo = i;
-      const date = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 15);
-      const estimatedRating = Math.max(1200, contestRating - (i * 40));
-      
+    const rankingHistory = data.userContestRankingHistory || [];
+    if (rankingHistory.length > 0) {
+      rankingHistory.slice(-10).forEach((entry: { rating: number; contest: { startTime: number } }) => {
+        history.push({
+          date: new Date(entry.contest.startTime * 1000).toISOString().split('T')[0],
+          rating: Math.round(entry.rating),
+        });
+      });
+    } else if (contestRating > 0) {
       history.push({
-        date: date.toISOString().split('T')[0],
-        rating: estimatedRating
+        date: new Date().toISOString().split('T')[0],
+        rating: contestRating,
       });
     }
 
-    history.push({
-      date: now.toISOString().split('T')[0],
-      rating: contestRating
-    });
-
-    const result = {
+    return res.status(200).json({
       handle: user.username,
       totalSolved,
       easySolved,
@@ -146,17 +111,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       streak,
       contestRating,
       badges,
-      history
-    };
+      history,
+    });
+  } catch (error: unknown) {
+    const err = error as { message?: string; response?: { status?: number; data?: unknown } };
+    console.error('LeetCode API Error:', err.message, err.response?.data);
 
-    return res.status(200).json(result);
-  } catch (error: any) {
-    console.error('LeetCode API Error:', error.message);
-    
-    if (error.response?.status === 404) {
-      return res.status(404).json({ error: 'User not found' });
+    if (err.response?.status === 404) {
+      return res.status(404).json({ error: `LeetCode user "${username}" not found` });
     }
-    
-    return res.status(500).json({ error: 'Failed to fetch LeetCode data' });
+
+    return res.status(500).json({
+      error: 'Failed to fetch LeetCode data',
+      detail: err.message || 'Unknown error',
+    });
   }
 }

@@ -492,7 +492,13 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
           // Start active onSnapshot synchronization
           const unsubSettings = onSnapshot(doc(db, 'users', uid), (settingsDoc) => {
             if (settingsDoc.exists()) {
-              set({ settings: settingsDoc.data() as UserSettings });
+              const remoteSettings = settingsDoc.data() as UserSettings;
+              if (remoteSettings.theme === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+              set({ settings: remoteSettings });
             }
           }, (err) => {
             console.error("Realtime settings sync error:", err);
@@ -587,6 +593,15 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
     updateSettings: async (newSettings) => {
       const state = get();
       const updated = { ...state.settings, ...newSettings };
+
+      // Apply theme immediately to DOM
+      if (newSettings.theme !== undefined) {
+        if (newSettings.theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
       
       const user = state.user;
       if (user) {
@@ -784,7 +799,8 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
             axios.get(url, { timeout: 15000 })
               .then(res => { setter(res.data); })
               .catch(err => {
-                const msg = err.response?.data?.error || err.message || 'Fetch failed';
+                const data = err.response?.data;
+                const msg = data?.error || data?.detail || err.message || 'Fetch failed';
                 console.warn(`${platform} fetch failed:`, msg);
                 fetchErrors[platform] = msg;
                 setter(null);

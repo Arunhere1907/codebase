@@ -219,7 +219,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-sleek-bg text-gray-800 dark:text-sleek-text transition-colors duration-300 relative">
+    <div className="min-h-screen bg-[var(--color-sleek-bg)] text-[var(--color-sleek-text)] transition-colors duration-300 relative">
       
       {/* Dynamic floating micro-toasts notifications */}
       <div className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full space-y-3 font-sans">

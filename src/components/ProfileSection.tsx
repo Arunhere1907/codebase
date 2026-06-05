@@ -291,14 +291,16 @@ export default function ProfileSection() {
                   GitHub Profile Index
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-white/40">
-                  Account: <span className="font-mono text-blue-500">@{ghData?.username || settings.usernames.github || 'Not set'}</span> • Streak: <span className="font-mono font-semibold">{ghData?.streak ?? 28} days</span>
+                  Account: <span className="font-mono text-blue-500">@{ghData?.username || settings.usernames.github || 'Not set'}</span>
+                  {ghData && <> • Streak: <span className="font-mono font-semibold">{ghData.streak} days</span></>}
+                  {fetchErrors.github && <span className="text-amber-500 block mt-0.5">Fetch failed: {fetchErrors.github}</span>}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4 shrink-0 text-right font-mono">
               <div>
                 <span className="text-[10px] text-gray-400 uppercase block">Weekly Commits</span>
-                <span className="text-sm font-bold text-zinc-900 dark:text-gray-100">{ghData?.contributionsThisWeek ?? 42}</span>
+                <span className="text-sm font-bold text-zinc-900 dark:text-gray-100">{ghData?.contributionsThisWeek ?? '—'}</span>
               </div>
               <button 
                 onClick={() => handleCardClick('GitHub')}

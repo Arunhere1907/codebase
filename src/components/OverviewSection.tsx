@@ -406,6 +406,27 @@ export default function OverviewSection() {
         </div>
       )}
 
+      {failedFetches > 0 && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
+          <p className="text-xs font-bold text-red-600 dark:text-red-400">
+            {failedFetches} platform{failedFetches > 1 ? 's' : ''} failed to fetch:
+          </p>
+          <ul className="text-[11px] text-red-500/80 dark:text-red-400/80 font-mono space-y-1">
+            {Object.entries(fetchErrors).map(([platform, err]) => (
+              <li key={platform}>• <strong>{platform}</strong>: {err}</li>
+            ))}
+          </ul>
+          <div className="flex gap-3 pt-1">
+            <button onClick={() => refreshStats(true)} className="text-xs font-bold text-red-500 hover:underline">
+              Retry now
+            </button>
+            <button onClick={() => setTab('settings')} className="text-xs font-bold text-red-500 hover:underline">
+              Check handles in Settings
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Stats grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-white dark:bg-sleek-card border border-gray-150 dark:border-white/10 rounded-2xl relative overflow-hidden flex flex-col justify-between min-h-[140px] shadow-sm">

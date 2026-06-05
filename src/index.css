@@ -1,16 +1,51 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* Class-based dark mode — toggled via .dark on <html>, NOT system preference */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Light mode defaults */
+  --color-sleek-bg: #f8fafc;
+  --color-sleek-sidebar: #ffffff;
+  --color-sleek-card: #ffffff;
+  --color-sleek-nav: #ffffff;
+  --color-sleek-text: #111827;
+  --color-gray-150: #e5e7eb;
+}
+
+/* Dark mode overrides when .dark class is on <html> */
+.dark {
   --color-sleek-bg: #0c111d;
   --color-sleek-sidebar: #080c16;
   --color-sleek-card: #111827;
+  --color-sleek-nav: #0a0f1a;
   --color-sleek-text: #f3f4f6;
+  --color-gray-150: rgba(255, 255, 255, 0.08);
 }
 
-/* Custom scrollbar and ambient styles */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-sleek-bg);
+  color: var(--color-sleek-text);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -29,3 +64,10 @@
   background: rgba(156, 163, 175, 0.45);
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

@@ -207,6 +207,38 @@ export default function SettingsSection() {
           </div>
         </div>
 
+        {/* Appearance */}
+        <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-4 shadow-sm">
+          <h2 className="text-sm font-sans font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            {settings.theme === 'dark' ? <Moon size={16} className="text-indigo-400" /> : <Sun size={16} className="text-amber-500" />}
+            Appearance
+          </h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => updateSettings({ theme: 'light' })}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold border transition-all ${
+                settings.theme === 'light'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 hover:border-blue-400'
+              }`}
+            >
+              <Sun size={14} /> Light Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => updateSettings({ theme: 'dark' })}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold border transition-all ${
+                settings.theme === 'dark'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 hover:border-blue-400'
+              }`}
+            >
+              <Moon size={14} /> Dark Mode
+            </button>
+          </div>
+        </div>
+
         {/* System Settings & caching */}
         <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-4 shadow-sm">
           <h2 className="text-sm font-sans font-bold text-gray-900 dark:text-white flex items-center gap-2">
