@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { format, subDays, startOfWeek, eachDayOfInterval, parseISO } from 'date-fns';
+import axios from 'axios';
 import { Grid3X3 } from 'lucide-react';
-import type { DashboardStats, ProblemLog, UserSettings } from '../types';
+import type { DailyCountMap, DashboardStats, ProblemLog, UserSettings } from '../types';
 
 export interface DayActivityBreakdown {
   date: string;
@@ -26,6 +27,12 @@ interface SubmissionHeatmapProps {
   loading?: boolean;
 }
 
+type FetchedDaily = {
+  leetcode?: DailyCountMap;
+  codeforces?: DailyCountMap;
+  github?: DailyCountMap;
+};
+
 const WEEKS = 53;
 const LEVEL_CLASSES = [
   'bg-gray-100 dark:bg-white/[0.06] border border-gray-200/80 dark:border-white/[0.06]',
@@ -39,19 +46,23 @@ const PLATFORM_ROWS: Array<{
   key: keyof Omit<DayActivityBreakdown, 'date' | 'total'>;
   label: string;
   dotClass: string;
-  configured: (s: UserSettings) => boolean;
 }> = [
-  { key: 'leetcode', label: 'LeetCode', dotClass: 'bg-blue-600', configured: (s) => !!s.usernames.leetcode?.trim() },
-  { key: 'github', label: 'GitHub commits', dotClass: 'bg-zinc-400 dark:bg-zinc-300', configured: (s) => !!s.usernames.github?.trim() },
-  { key: 'codeforces', label: 'Codeforces', dotClass: 'bg-cyan-400', configured: (s) => !!s.usernames.codeforces?.trim() },
-  { key: 'codechef', label: 'CodeChef', dotClass: 'bg-emerald-500', configured: (s) => !!s.usernames.codechef?.trim() },
-  { key: 'atcoder', label: 'AtCoder', dotClass: 'bg-indigo-500', configured: (s) => !!s.usernames.atcoder?.trim() },
-  { key: 'tracker', label: 'CP Tracker logs', dotClass: 'bg-amber-500', configured: () => true },
+  { key: 'leetcode', label: 'LeetCode', dotClass: 'bg-blue-600' },
+  { key: 'github', label: 'GitHub commits', dotClass: 'bg-zinc-400 dark:bg-zinc-300' },
+  { key: 'codeforces', label: 'Codeforces', dotClass: 'bg-cyan-400' },
+  { key: 'codechef', label: 'CodeChef', dotClass: 'bg-emerald-500' },
+  { key: 'atcoder', label: 'AtCoder', dotClass: 'bg-indigo-500' },
+  { key: 'tracker', label: 'CP Tracker logs', dotClass: 'bg-amber-500' },
 ];
+
+function hasDailyData(map?: DailyCountMap): boolean {
+  return !!map && Object.keys(map).length > 0;
+}
 
 function buildActivityByDate(
   stats: DashboardStats | null,
-  problemLogs: ProblemLog[]
+  problemLogs: ProblemLog[],
+  fetched: FetchedDaily
 ): Record<string, DayActivityBreakdown> {
   const map: Record<string, DayActivityBreakdown> = {};
 
@@ -79,16 +90,19 @@ function buildActivityByDate(
     });
   };
 
-  addMap(stats?.leetcode?.dailySubmissions, 'leetcode');
-  addMap(stats?.codeforces?.dailySubmissions, 'codeforces');
-  addMap(stats?.github?.dailyCommits, 'github');
+  addMap(fetched.leetcode ?? stats?.leetcode?.dailySubmissions, 'leetcode');
+  addMap(fetched.codeforces ?? stats?.codeforces?.dailySubmissions, 'codeforces');
+  addMap(fetched.github ?? stats?.github?.dailyCommits, 'github');
 
   problemLogs.forEach((log) => {
     try {
       const date = format(parseISO(log.date), 'yyyy-MM-dd');
       const day = ensure(date);
       const platform = log.platform.toLowerCase();
-      if (platform === 'codechef') day.codechef += 1;
+      if (platform === 'leetcode') day.leetcode += 1;
+      else if (platform === 'codeforces') day.codeforces += 1;
+      else if (platform === 'github') day.github += 1;
+      else if (platform === 'codechef') day.codechef += 1;
       else if (platform === 'atcoder') day.atcoder += 1;
       day.tracker += 1;
     } catch {
@@ -116,22 +130,100 @@ function getIntensityLevel(total: number, maxTotal: number): number {
 export default function SubmissionHeatmap({ stats, problemLogs, settings, loading }: SubmissionHeatmapProps) {
   const [hovered, setHovered] = useState<DayActivityBreakdown | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [fetchedDaily, setFetchedDaily] = useState<FetchedDaily>({});
+  const [fetchingDaily, setFetchingDaily] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const { weeks, maxTotal, monthLabels, hasAnyActivity } = useMemo(() => {
+  const { usernames } = settings;
+
+  useEffect(() => {
+    const lc = usernames.leetcode?.trim();
+    const cf = usernames.codeforces?.trim();
+    const gh = usernames.github?.trim();
+
+    const needLc = lc && !hasDailyData(stats?.leetcode?.dailySubmissions) && !hasDailyData(fetchedDaily.leetcode);
+    const needCf = cf && !hasDailyData(stats?.codeforces?.dailySubmissions) && !hasDailyData(fetchedDaily.codeforces);
+    const needGh = gh && !hasDailyData(stats?.github?.dailyCommits) && !hasDailyData(fetchedDaily.github);
+
+    if (!needLc && !needCf && !needGh) return;
+
+    let cancelled = false;
+    setFetchingDaily(true);
+
+    const tasks: Promise<void>[] = [];
+
+    if (needLc) {
+      tasks.push(
+        axios
+          .get(`/api/leetcode?handle=${encodeURIComponent(lc!)}`, { timeout: 20000 })
+          .then((res) => {
+            if (!cancelled && res.data?.dailySubmissions) {
+              setFetchedDaily((prev) => ({ ...prev, leetcode: res.data.dailySubmissions }));
+            }
+          })
+          .catch(() => {})
+      );
+    }
+    if (needCf) {
+      tasks.push(
+        axios
+          .get(`/api/codeforces?handle=${encodeURIComponent(cf!)}`, { timeout: 20000 })
+          .then((res) => {
+            if (!cancelled && res.data?.dailySubmissions) {
+              setFetchedDaily((prev) => ({ ...prev, codeforces: res.data.dailySubmissions }));
+            }
+          })
+          .catch(() => {})
+      );
+    }
+    if (needGh) {
+      tasks.push(
+        axios
+          .get(`/api/github?username=${encodeURIComponent(gh!)}`, { timeout: 20000 })
+          .then((res) => {
+            if (!cancelled && res.data?.dailyCommits) {
+              setFetchedDaily((prev) => ({ ...prev, github: res.data.dailyCommits }));
+            }
+          })
+          .catch(() => {})
+      );
+    }
+
+    Promise.allSettled(tasks).finally(() => {
+      if (!cancelled) setFetchingDaily(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    usernames.leetcode,
+    usernames.codeforces,
+    usernames.github,
+    stats?.lastUpdated,
+    stats?.leetcode?.dailySubmissions,
+    stats?.codeforces?.dailySubmissions,
+    stats?.github?.dailyCommits,
+  ]);
+
+  const activityByDate = useMemo(
+    () => buildActivityByDate(stats, problemLogs, fetchedDaily),
+    [stats, problemLogs, fetchedDaily]
+  );
+
+  const { weeks, maxTotal, monthLabels, activeDayCount } = useMemo(() => {
     const end = new Date();
     const start = subDays(end, WEEKS * 7 - 1);
     const rangeStart = startOfWeek(start, { weekStartsOn: 0 });
     const allDays = eachDayOfInterval({ start: rangeStart, end });
 
-    const activityByDate = buildActivityByDate(stats, problemLogs);
     let max = 0;
-    let any = false;
+    let active = 0;
 
     allDays.forEach((d) => {
       const key = format(d, 'yyyy-MM-dd');
       const total = activityByDate[key]?.total ?? 0;
-      if (total > 0) any = true;
+      if (total > 0) active += 1;
       if (total > max) max = total;
     });
 
@@ -152,14 +244,9 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
       weeks: weekColumns,
       maxTotal: max,
       monthLabels: labels,
-      hasAnyActivity: any,
+      activeDayCount: active,
     };
-  }, [stats, problemLogs]);
-
-  const activityByDate = useMemo(
-    () => buildActivityByDate(stats, problemLogs),
-    [stats, problemLogs]
-  );
+  }, [activityByDate]);
 
   const handleCellEnter = (day: DayActivityBreakdown, e: React.MouseEvent<HTMLButtonElement>) => {
     setHovered(day);
@@ -173,7 +260,11 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
     }
   };
 
-  const configuredPlatforms = PLATFORM_ROWS.filter((p) => p.configured(settings));
+  const tooltipRows = hovered
+    ? PLATFORM_ROWS.filter(({ key }) => hovered[key] > 0 || key === 'tracker')
+    : [];
+
+  const hasConfiguredHandle = Object.values(usernames).some((h) => h?.trim());
 
   return (
     <div className="p-5 bg-white dark:bg-sleek-card border border-gray-150 dark:border-white/10 rounded-2xl space-y-4 shadow-sm">
@@ -195,19 +286,17 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
       </div>
 
       <p className="text-[11px] text-gray-500 dark:text-white/35 font-sans -mt-1">
-        Last 12 months across LeetCode, GitHub, Codeforces, and your CP Tracker logs. Hover a day for the breakdown.
+        Last 12 months — any platform you&apos;ve configured counts. Hover a day for LeetCode, GitHub, Codeforces, and tracker breakdown.
+        {activeDayCount > 0 && (
+          <span className="text-blue-500 dark:text-blue-400 font-semibold ml-1">
+            {activeDayCount} active day{activeDayCount === 1 ? '' : 's'}
+          </span>
+        )}
       </p>
 
-      {loading && !stats ? (
-        <div className="h-[130px] flex items-center justify-center">
-          <span className="text-xs text-gray-400 animate-pulse">Loading activity data…</span>
-        </div>
-      ) : !hasAnyActivity ? (
-        <div className="h-[130px] flex flex-col items-center justify-center gap-2 text-center px-4">
-          <p className="text-xs text-gray-400">No submission activity in the last year yet.</p>
-          <p className="text-[10px] text-gray-400 dark:text-white/30">
-            Add platform handles in Settings and refresh stats, or log problems in CP Tracker.
-          </p>
+      {(loading && !stats) || fetchingDaily ? (
+        <div className="h-[118px] flex items-center justify-center border border-dashed border-gray-200 dark:border-white/10 rounded-xl">
+          <span className="text-xs text-gray-400 animate-pulse">Loading heatmap…</span>
         </div>
       ) : (
         <div ref={gridRef} className="relative overflow-x-auto pb-1">
@@ -220,19 +309,19 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
                 {format(parseISO(hovered.date), 'EEE, MMM d, yyyy')}
               </p>
               <div className="space-y-1.5">
-                {PLATFORM_ROWS.map(({ key, label, dotClass, configured }) => {
-                  const count = hovered[key];
-                  if (!configured(settings) && key !== 'tracker') return null;
-                  return (
+                {tooltipRows.length === 0 ? (
+                  <p className="text-[10px] text-gray-500 dark:text-white/40">No activity this day</p>
+                ) : (
+                  tooltipRows.map(({ key, label, dotClass }) => (
                     <div key={key} className="flex items-center justify-between gap-4 text-[10px]">
                       <span className="flex items-center gap-1.5 text-gray-600 dark:text-white/60">
                         <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
                         {label}
                       </span>
-                      <strong className="font-mono text-gray-900 dark:text-white">{count}</strong>
+                      <strong className="font-mono text-gray-900 dark:text-white">{hovered[key]}</strong>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
               <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/10 flex justify-between text-[10px]">
                 <span className="text-gray-500 dark:text-white/40">Total</span>
@@ -250,7 +339,7 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
             </div>
 
             <div className="flex flex-col gap-1">
-              <div className="flex gap-[3px] h-3 pl-0.5 relative">
+              <div className="flex gap-[3px] h-3 pl-0.5 relative min-w-[200px]">
                 {monthLabels.map(({ label, weekIndex }) => (
                   <span
                     key={`${label}-${weekIndex}`}
@@ -302,15 +391,10 @@ export default function SubmissionHeatmap({ stats, problemLogs, settings, loadin
             </div>
           </div>
 
-          {configuredPlatforms.length > 0 && (
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-gray-100 dark:border-white/5">
-              {configuredPlatforms.map(({ label, dotClass }) => (
-                <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-white/40">
-                  <span className={`w-2 h-2 rounded-full ${dotClass}`} />
-                  {label}
-                </span>
-              ))}
-            </div>
+          {activeDayCount === 0 && hasConfiguredHandle && !fetchingDaily && (
+            <p className="text-[10px] text-gray-400 dark:text-white/30 mt-3 text-center">
+              Grid is ready — click <strong className="text-blue-500">Sync Platform Data</strong> in the sidebar to pull submission history.
+            </p>
           )}
         </div>
       )}

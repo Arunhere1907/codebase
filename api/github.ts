@@ -64,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       const events: Array<{ type: string; created_at: string; payload?: { commits?: unknown[] } }> = [];
-      const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+      const oneYearAgo = Date.now() - 53 * 7 * 24 * 60 * 60 * 1000;
 
       for (let page = 1; page <= 10; page++) {
         const eventsResponse = await axios.get(

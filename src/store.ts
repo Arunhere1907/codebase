@@ -827,8 +827,14 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       const { settings, stats, loading } = get();
       if (loading.stats) return;
 
-      // If already has stats and not forced, check TTL
-      if (stats && !force) {
+      const { usernames } = settings;
+      const missingHeatmapData =
+        (usernames.leetcode?.trim() && !stats?.leetcode?.dailySubmissions) ||
+        (usernames.codeforces?.trim() && !stats?.codeforces?.dailySubmissions) ||
+        (usernames.github?.trim() && !stats?.github?.dailyCommits);
+
+      // If already has stats and not forced, check TTL (unless daily heatmap data is missing)
+      if (stats && !force && !missingHeatmapData) {
         const ttl = settings.refreshInterval * 60 * 1000;
         const lastUpdated = new Date(stats.lastUpdated).getTime();
         if (Date.now() - lastUpdated < ttl) {
@@ -839,8 +845,6 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       set((state) => ({ loading: { ...state.loading, stats: true } }));
 
       try {
-        const { usernames } = settings;
-        
         // Fetch stats in parallel for configured platforms only
         const fetchPromises: Array<Promise<any>> = [];
         

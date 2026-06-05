@@ -8,7 +8,7 @@ const LC_HEADERS = {
   'Origin': 'https://leetcode.com',
 };
 
-async function lcGraphql(query: string, variables: Record<string, string>) {
+async function lcGraphql(query: string, variables: Record<string, string | number>) {
   const response = await axios.post(
     'https://leetcode.com/graphql',
     { query, variables },
@@ -77,21 +77,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const totalSolved = easySolved + mediumSolved + hardSolved;
     const streak = user.userCalendar?.streak || 0;
+    const HEATMAP_MS = 53 * 7 * 24 * 60 * 60 * 1000;
+    const heatmapCutoff = Date.now() - HEATMAP_MS;
+
     const dailySubmissions: Record<string, number> = {};
+    const addDaily = (dayKey: string, count: number) => {
+      if (!dayKey) return;
+      dailySubmissions[dayKey] = (dailySubmissions[dayKey] || 0) + count;
+    };
+
     try {
       const rawCalendar = user.userCalendar?.submissionCalendar;
       if (rawCalendar) {
         const parsed = JSON.parse(rawCalendar) as Record<string, number>;
-        const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
         Object.entries(parsed).forEach(([ts, count]) => {
           const ms = Number(ts) * 1000;
-          if (Number.isNaN(ms) || ms < cutoff) return;
-          const key = new Date(ms).toISOString().slice(0, 10);
-          dailySubmissions[key] = (dailySubmissions[key] || 0) + Number(count);
+          if (Number.isNaN(ms) || ms < heatmapCutoff) return;
+          addDaily(new Date(ms).toISOString().slice(0, 10), Number(count));
         });
       }
     } catch {
       // submissionCalendar optional
+    }
+
+    if (Object.keys(dailySubmissions).length === 0) {
+      try {
+        const recentData = await lcGraphql(
+          `query recentAcSubmissions($username: String!, $limit: Int!) {
+            recentAcSubmissionList(username: $username, limit: $limit) {
+              timestamp
+            }
+          }`,
+          { username, limit: 2500 }
+        );
+        const recent = recentData?.data?.recentAcSubmissionList || [];
+        recent.forEach((sub: { timestamp: string }) => {
+          const sec = Number(sub.timestamp);
+          if (Number.isNaN(sec)) return;
+          const ms = sec * 1000;
+          if (ms < heatmapCutoff) return;
+          addDaily(new Date(ms).toISOString().slice(0, 10), 1);
+        });
+      } catch {
+        // recent list optional
+      }
     }
 
     const contestRating = data.userContestRanking?.rating

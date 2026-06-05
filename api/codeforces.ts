@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       time: string;
     }> = [];
     const dailySubmissions: Record<string, number> = {};
-    const activityCutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const activityCutoff = Date.now() - 53 * 7 * 24 * 60 * 60 * 1000;
 
     try {
       const submissions = await cfGet<CodeforcesSubmission[]>(
