@@ -24,6 +24,8 @@ import UserAvatar from './UserAvatar';
 export default function SettingsSection() {
   const { settings, updateSettings, problemLogs, portfolio } = useCodeBaseStore();
   const [isSaved, setIsSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [cfHandle, setCfHandle] = useState(settings.usernames.codeforces);
   const [lcHandle, setLcHandle] = useState(settings.usernames.leetcode);
@@ -45,23 +47,31 @@ export default function SettingsSection() {
     setRefreshPeriod(settings.refreshInterval);
   }, [settings]);
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings({
-      usernames: {
-        codeforces: cfHandle.trim(),
-        leetcode: lcHandle.trim(),
-        codechef: ccHandle.trim(),
-        atcoder: acHandle.trim(),
-        github: ghHandle.trim()
-      },
-      displayName: displayName.trim() || undefined,
-      contestReminders: reminders,
-      refreshInterval: Number(refreshPeriod) || 15
-    });
-
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2500);
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      await updateSettings({
+        usernames: {
+          codeforces: cfHandle.trim(),
+          leetcode: lcHandle.trim(),
+          codechef: ccHandle.trim(),
+          atcoder: acHandle.trim(),
+          github: ghHandle.trim()
+        },
+        displayName: displayName.trim() || undefined,
+        contestReminders: reminders,
+        refreshInterval: Number(refreshPeriod) || 15
+      });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save settings';
+      setSaveError(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Export backup data as formatted JSON
@@ -285,8 +295,8 @@ export default function SettingsSection() {
         </div>
 
         {/* Global Save Button */}
-        <div className="flex items-center justify-between pt-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3">
+          <div className="flex flex-col gap-2">
             <AnimatePresence>
               {isSaved && (
                 <motion.span
@@ -295,18 +305,24 @@ export default function SettingsSection() {
                   exit={{ opacity: 0, x: -10 }}
                   className="text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-1"
                 >
-                  <Check size={14} /> Handle settings updated! Offline caches rebuilt.
+                  <Check size={14} /> Handle settings updated! Stats refresh started.
                 </motion.span>
               )}
             </AnimatePresence>
+            {saveError && (
+              <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center gap-1">
+                <ShieldAlert size={14} /> {saveError}
+              </span>
+            )}
           </div>
 
           <button
             id="settings-save-btn"
             type="submit"
-            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-sans text-xs font-semibold rounded-lg shadow-md transition-all active:scale-[0.97]"
+            disabled={isSaving}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-sans text-xs font-semibold rounded-lg shadow-md transition-all active:scale-[0.97]"
           >
-            Save All Configurations
+            {isSaving ? 'Saving…' : 'Save All Configurations'}
           </button>
         </div>
 

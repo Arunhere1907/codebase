@@ -363,6 +363,35 @@ const initialSettings: UserSettings = {
   defaultReminderTime: 60
 };
 
+/** Firestore rules only allow specific user document fields. */
+function toFirestoreUserDoc(settings: UserSettings, uid: string): UserSettings & { id: string } {
+  const doc: UserSettings & { id: string } = {
+    id: uid,
+    usernames: settings.usernames,
+    theme: settings.theme,
+    contestReminders: settings.contestReminders,
+    refreshInterval: settings.refreshInterval,
+  };
+  if (settings.defaultReminderTime !== undefined) {
+    doc.defaultReminderTime = settings.defaultReminderTime;
+  }
+  if (settings.displayName?.trim()) {
+    doc.displayName = settings.displayName.trim();
+  }
+  if (settings.avatarUrl) {
+    doc.avatarUrl = settings.avatarUrl;
+  }
+  return doc;
+}
+
+function persistSettingsLocally(settings: UserSettings) {
+  try {
+    localStorage.setItem('codebase_settings', JSON.stringify(settings));
+  } catch (e) {
+    console.warn('Failed to persist settings to localStorage', e);
+  }
+}
+
 export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
   // Load from local storage has fallbacks
   const getStoredSettings = (): UserSettings => {
@@ -466,11 +495,8 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
             console.log("Seeding Firestore data for new user", uid);
             try {
               // 1. Seed global User Settings
-              const seededSettings = {
-                ...getStoredSettings(),
-                id: uid
-              };
-              await setDoc(doc(db, 'users', uid), seededSettings);
+              const seededSettings = getStoredSettings();
+              await setDoc(doc(db, 'users', uid), toFirestoreUserDoc(seededSettings, uid));
 
               // 2. Seed Portfolio
               await setDoc(doc(db, 'users', uid, 'portfolio', 'main'), getStoredPortfolio());
@@ -492,13 +518,33 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
           // Start active onSnapshot synchronization
           const unsubSettings = onSnapshot(doc(db, 'users', uid), (settingsDoc) => {
             if (settingsDoc.exists()) {
-              const remoteSettings = settingsDoc.data() as UserSettings;
+              let remoteSettings = settingsDoc.data() as UserSettings;
+              const localSettings = getStoredSettings();
+              const remoteHasHandles = Object.values(remoteSettings.usernames || {}).some((h) => h?.trim());
+              const localHasHandles = Object.values(localSettings.usernames || {}).some((h) => h?.trim());
+
+              // Recover handles saved locally when cloud doc is still empty (failed sync earlier)
+              if (!remoteHasHandles && localHasHandles) {
+                remoteSettings = {
+                  ...remoteSettings,
+                  usernames: { ...remoteSettings.usernames, ...localSettings.usernames },
+                };
+                setDoc(doc(db, 'users', uid), toFirestoreUserDoc(remoteSettings, uid), { merge: true }).catch(
+                  (err) => console.warn('Could not backfill handles to Firestore', err)
+                );
+              }
+
               if (remoteSettings.theme === 'dark') {
                 document.documentElement.classList.add('dark');
               } else {
                 document.documentElement.classList.remove('dark');
               }
+              persistSettingsLocally(remoteSettings);
               set({ settings: remoteSettings });
+              const hasHandles = Object.values(remoteSettings.usernames || {}).some((h) => h?.trim());
+              if (hasHandles) {
+                get().refreshStats(true);
+              }
             }
           }, (err) => {
             console.error("Realtime settings sync error:", err);
@@ -592,7 +638,13 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
     
     updateSettings: async (newSettings) => {
       const state = get();
-      const updated = { ...state.settings, ...newSettings };
+      const updated: UserSettings = {
+        ...state.settings,
+        ...newSettings,
+        usernames: newSettings.usernames
+          ? { ...state.settings.usernames, ...newSettings.usernames }
+          : state.settings.usernames,
+      };
 
       // Apply theme immediately to DOM
       if (newSettings.theme !== undefined) {
@@ -602,25 +654,36 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
           document.documentElement.classList.remove('dark');
         }
       }
-      
+
+      // Always update in-memory state and local backup first (survives reload + failed cloud sync)
+      set({ settings: updated });
+      persistSettingsLocally(updated);
+
       const user = state.user;
       if (user) {
         try {
-          const uid = user.uid;
-          await setDoc(doc(db, 'users', uid), { ...updated, id: uid }, { merge: true });
-          
-          // Trigger stats refresh with new usernames
-          await get().refreshStats(true);
+          await setDoc(
+            doc(db, 'users', user.uid),
+            toFirestoreUserDoc(updated, user.uid),
+            { merge: true }
+          );
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+          const message = err instanceof Error ? err.message : String(err);
+          const needsVerification =
+            message.includes('PERMISSION_DENIED') &&
+            auth.currentUser &&
+            !auth.currentUser.emailVerified &&
+            auth.currentUser.providerData.every((p) => p.providerId !== 'google.com');
+          console.error('Firestore settings sync failed:', err);
+          throw new Error(
+            needsVerification
+              ? 'Settings saved on this device. Verify your email to sync to the cloud.'
+              : 'Settings saved on this device. Cloud sync failed — check your connection or try again.'
+          );
         }
-      } else {
-        localStorage.setItem('codebase_settings', JSON.stringify(updated));
-        set({ settings: updated });
-        
-        // Trigger stats refresh with new usernames
-        await get().refreshStats(true);
       }
+
+      await get().refreshStats(true);
     },
 
     addProblemLog: async (log) => {

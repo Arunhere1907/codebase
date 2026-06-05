@@ -41,7 +41,9 @@ service cloud.firestore {
              data.contestReminders is bool &&
              data.refreshInterval is number && data.refreshInterval >= 1 && data.refreshInterval <= 1440 &&
              data.keys().hasAll(['id', 'usernames', 'theme', 'contestReminders', 'refreshInterval']) &&
-             (data.keys().size() == 5 || (data.keys().size() == 6 && data.defaultReminderTime is number));
+             (!('defaultReminderTime' in data) || data.defaultReminderTime is number) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500000));
     }
 
     function isValidProblemLog(data, uId) {

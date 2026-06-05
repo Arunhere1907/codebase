@@ -53,6 +53,19 @@ export default function ProfileSection() {
     refreshStats();
   }, []);
 
+  useEffect(() => {
+    const handles = Object.values(settings.usernames).filter((h) => h?.trim());
+    if (handles.length > 0) {
+      refreshStats(true);
+    }
+  }, [
+    settings.usernames.codeforces,
+    settings.usernames.leetcode,
+    settings.usernames.codechef,
+    settings.usernames.atcoder,
+    settings.usernames.github,
+  ]);
+
   const cfData = stats?.codeforces;
   const lcData = stats?.leetcode;
   const ccData = stats?.codechef;
@@ -124,7 +137,7 @@ export default function ProfileSection() {
       name: 'LeetCode',
       handle: lcData?.handle || settings.usernames.leetcode || 'Not Configured',
       rating: lcData?.contestRating || 'Unrated',
-      rank: lcData?.badges[0] || 'N/A',
+      rank: lcData?.badges?.[0] || 'N/A',
       solved: lcData?.totalSolved || 0,
       color: 'border-l-4 border-l-amber-500',
       hoverBorder: 'hover:border-amber-500/30',
