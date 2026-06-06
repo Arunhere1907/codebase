@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { useCodeBaseStore } from '../store';
 import UserAvatar, { getUserDisplayInfo } from './UserAvatar';
-import UserAvatar, { getUserDisplayInfo } from './UserAvatar';
 
 export default function Sidebar() {
   const { 
@@ -64,8 +63,8 @@ export default function Sidebar() {
     >
       {/* Top Logo / Brand */}
       <div>
-        <div className="h-20 flex flex-col justify-center px-4 border-b border-gray-100 dark:border-white/10 relative">
-          <div className="flex items-center justify-between">
+        <div className={`flex flex-col justify-center border-b border-gray-100 dark:border-white/10 relative ${sidebarCollapsed ? 'h-24 px-2' : 'h-20 px-4'}`}>
+          <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-1.5' : 'justify-between'}`}>
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 font-mono font-bold tracking-tight shadow-lg">
                 <Layout size={16} />

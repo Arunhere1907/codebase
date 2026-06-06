@@ -114,8 +114,16 @@ export default function PortfolioSection() {
 
   // Compile offline self-contained HTML
   const handleExportHTML = () => {
-    const skillsListHTML = portfolio.skills.map(s => `<span class="px-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded text-xs">${s}</span>`).join('\n');
-    const projectsListHTML = portfolio.projects.map(p => `
+    // Auto-save current form state to store before exporting
+    handleSavePortfolio();
+
+    // Use form state directly (avoids async store update timing issues)
+    const currentSkills = formSkills.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const currentProjects = formProjects;
+    const currentEducation = formEducation;
+
+    const skillsListHTML = currentSkills.map(s => `<span class="px-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded text-xs">${s}</span>`).join('\n');
+    const projectsListHTML = currentProjects.map(p => `
       <div class="p-5 border border-zinc-900 bg-zinc-950/40 rounded-xl space-y-3">
         <div class="flex justify-between items-start gap-2">
           <div>
@@ -131,7 +139,7 @@ export default function PortfolioSection() {
       </div>
     `).join('\n');
 
-    const educationHTML = portfolio.education.map(e => `
+    const educationHTML = currentEducation.map(e => `
       <div class="py-3">
         <h4 class="text-xs font-bold text-white">${e.degree}</h4>
         <p class="text-[11px] text-zinc-400 font-sans mt-0.5">${e.institution} • ${e.duration}</p>
@@ -144,7 +152,7 @@ export default function PortfolioSection() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${portfolio.name} - Portfolio</title>
+  <title>${formName} - Portfolio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -163,7 +171,7 @@ export default function PortfolioSection() {
   <!-- Nav bar -->
   <header class="fixed top-0 inset-x-0 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md z-50">
     <div class="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-      <span class="font-bold text-white tracking-tight">${portfolio.name}</span>
+      <span class="font-bold text-white tracking-tight">${formName}</span>
       <nav class="flex items-center gap-5 text-xs font-semibold text-zinc-400">
         <a href="#about" class="hover:text-white transition-colors">About</a>
         <a href="#skills" class="hover:text-white transition-colors">Skills</a>
@@ -180,16 +188,16 @@ export default function PortfolioSection() {
       <div class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded bg-blue-500/10 text-blue-400 border border-blue-500/15">
         💻 PORTFOLIO EXPORT
       </div>
-      <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">${portfolio.name}</h1>
-      <p class="text-xs font-mono text-zinc-500">${portfolio.title}</p>
+      <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">${formName}</h1>
+      <p class="text-xs font-mono text-zinc-500">${formTitle}</p>
       
       <!-- Terminal tagline -->
       <div class="p-4 bg-zinc-950 border border-zinc-900 rounded-lg text-xs leading-relaxed font-mono">
-        <span class="text-emerald-500">&gt;</span> ${portfolio.tagline}
+        <span class="text-emerald-500">&gt;</span> ${formTagline}
       </div>
 
       <div class="text-sm leading-relaxed text-zinc-400 pt-3 border-t border-zinc-900">
-        ${portfolio.aboutMe}
+        ${formAbout}
       </div>
     </section>
 
@@ -256,7 +264,7 @@ export default function PortfolioSection() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${portfolio.name.toLowerCase().replace(/\s+/g, '_')}_portfolio.html`;
+    link.download = `${formName.toLowerCase().replace(/\s+/g, '_')}_portfolio.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -290,7 +298,7 @@ export default function PortfolioSection() {
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all ${
                 portfolioMode === 'private' 
                   ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-white/60'
+                  : 'text-gray-500 dark:text-white/50 hover:text-white/60'
               }`}
             >
               <Lock size={12} /> Dashboard View
@@ -301,7 +309,7 @@ export default function PortfolioSection() {
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all ${
                 portfolioMode === 'public' 
                   ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-white/60'
+                  : 'text-gray-500 dark:text-white/50 hover:text-white/60'
               }`}
             >
               <Unlock size={12} /> Public Preview
@@ -427,7 +435,7 @@ export default function PortfolioSection() {
                         value={p.description}
                         placeholder="Description"
                         onChange={(e) => handleUpdateProjectField(p.id, 'description', e.target.value)}
-                        className="w-full bg-transparent border border-gray-200 dark:border-white/10 rounded p-1.5 focus:outline-none text-gray-800 dark:text-gray-250"
+                        className="w-full bg-transparent border border-gray-200 dark:border-white/10 rounded p-1.5 focus:outline-none text-gray-800 dark:text-gray-200"
                       />
 
                       <div className="grid grid-cols-2 gap-2">

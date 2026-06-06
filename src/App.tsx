@@ -328,7 +328,7 @@ export default function App() {
                     <div className="absolute top-4 right-4 md:hidden z-10">
                       <button
                         onClick={() => setMobileMenuOpen(false)}
-                        className="p-1 rounded-full bg-gray-100 dark:bg-zinc-90 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        className="p-1 rounded-full bg-gray-100 dark:bg-zinc-900 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-900 dark:hover:text-white"
                       >
                         <X size={15} />
                       </button>

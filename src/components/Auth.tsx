@@ -96,7 +96,7 @@ export default function Auth({ onContinueAsGuest }: AuthProps) {
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
                 !isSignUp 
                   ? 'bg-white dark:bg-white/10 text-gray-950 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-900'
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <LogIn size={13} /> Log In
@@ -106,7 +106,7 @@ export default function Auth({ onContinueAsGuest }: AuthProps) {
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
                 isSignUp 
                   ? 'bg-white dark:bg-white/10 text-gray-950 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-900'
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <UserPlus size={13} /> Create Account

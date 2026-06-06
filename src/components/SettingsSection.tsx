@@ -333,7 +333,7 @@ export default function SettingsSection() {
         <h2 className="text-sm font-sans font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <Database size={16} className="text-indigo-500" /> Database Backup & Local Data Control
         </h2>
-        <p className="text-xs text-gray-550 dark:text-white/40">
+        <p className="text-xs text-gray-500 dark:text-white/40">
           CodeBase runs completely client-side. Export a JSON dump of your local state history to migrate between machines.
         </p>
 

@@ -248,7 +248,7 @@ export default function CalendarSection() {
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all ${
                 viewMode === 'list' 
                   ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-800'
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white'
               }`}
             >
               <List size={14} /> List View
@@ -259,7 +259,7 @@ export default function CalendarSection() {
               className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all ${
                 viewMode === 'calendar' 
                   ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-800'
+                  : 'text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white'
               }`}
             >
               <CalendarIcon size={14} /> Month Grid
