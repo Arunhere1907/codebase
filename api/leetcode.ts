@@ -44,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           profile { ranking reputation starRating }
           userCalendar { streak totalActiveDays submissionCalendar }
+          badges { displayName }
         }
         userContestRanking(username: $username) { rating topPercentage }
         userContestRankingHistory(username: $username) {
@@ -130,8 +131,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const topPercentage = data.userContestRanking?.topPercentage || null;
 
     const badges: string[] = [];
-    // Actual badges could be fetched via matchedUser.badges if the GraphQL query included it,
-    // but we remove the fake hardcoded logic to avoid confusing the user.
+    if (user.badges && Array.isArray(user.badges)) {
+      user.badges.forEach((b: { displayName: string }) => {
+        if (b.displayName) badges.push(b.displayName);
+      });
+    }
 
     const history: Array<{ date: string; rating: number }> = [];
     const rankingHistory = data.userContestRankingHistory || [];
