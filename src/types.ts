@@ -38,6 +38,7 @@ export interface LeetCodeStats {
   hardSolved: number;
   streak: number;
   contestRating: number;
+  topPercentage?: number | null;
   badges: string[];
   dailySubmissions?: DailyCountMap;
   history: Array<{ date: string; rating: number }>;

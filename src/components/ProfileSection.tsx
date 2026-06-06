@@ -499,18 +499,24 @@ export default function ProfileSection() {
                 <div className="space-y-4">
                   <div className="p-4 bg-gray-50/50 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/10 space-y-2">
                     <span className="text-xs font-semibold text-gray-500 block">Peak Contest Rating</span>
-                    <p className="text-2xl font-mono font-bold text-amber-500">{lcData?.contestRating ?? 1954}</p>
-                    <p className="text-xs text-gray-400">Classified as Knight on contest indices.</p>
+                    <p className="text-2xl font-mono font-bold text-amber-500">{lcData?.contestRating ? lcData.contestRating : 'Unrated'}</p>
+                    <p className="text-xs text-gray-400">
+                      {lcData?.topPercentage ? `Top ${lcData.topPercentage}% on contest indices.` : 'Current contest rating based on recent matches.'}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <span className="text-xs font-semibold text-gray-500 block">Acquired Badges ({lcData?.badges.length})</span>
+                    <span className="text-xs font-semibold text-gray-500 block">Acquired Badges ({lcData?.badges?.length || 0})</span>
                     <div className="flex flex-wrap gap-2">
-                      {lcData?.badges.map((b) => (
-                        <span key={b} className="px-2.5 py-1 text-xs font-sans rounded-md border border-amber-500/20 bg-amber-500/5 text-amber-500 flex items-center gap-1">
-                          <Sparkles size={11} /> {b}
-                        </span>
-                      ))}
+                      {lcData?.badges && lcData.badges.length > 0 ? (
+                        lcData.badges.map((b) => (
+                          <span key={b} className="px-2.5 py-1 text-xs font-sans rounded-md border border-amber-500/20 bg-amber-500/5 text-amber-500 flex items-center gap-1">
+                            <Sparkles size={11} /> {b}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400 dark:text-white/40 italic">No badges earned yet.</span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -127,10 +127,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? Math.round(data.userContestRanking.rating)
       : 0;
 
+    const topPercentage = data.userContestRanking?.topPercentage || null;
+
     const badges: string[] = [];
-    if (totalSolved >= 500) badges.push('Knight');
-    if (streak >= 30) badges.push('30-day Streak');
-    if (hardSolved >= 50) badges.push('Hard Problem Solver');
+    // Actual badges could be fetched via matchedUser.badges if the GraphQL query included it,
+    // but we remove the fake hardcoded logic to avoid confusing the user.
 
     const history: Array<{ date: string; rating: number }> = [];
     const rankingHistory = data.userContestRankingHistory || [];
@@ -156,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hardSolved,
       streak,
       contestRating,
+      topPercentage,
       badges,
       dailySubmissions,
       history,

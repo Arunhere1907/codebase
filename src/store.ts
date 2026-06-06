@@ -334,14 +334,7 @@ const defaultPortfolio: PortfolioData = {
       featured: false
     }
   ],
-  education: [
-    {
-      institution: 'Indian Institute of Technology, Madras',
-      degree: 'B.Tech in Computer Science and Engineering',
-      duration: '2022 - 2026',
-      grade: 'GPA: 9.2/10'
-    }
-  ],
+  education: [],
   cpHighlights: {
     maxCodeforcesRating: 1756,
     leetcodeStreak: 15,
