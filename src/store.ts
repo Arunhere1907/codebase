@@ -444,19 +444,10 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
 
   const getStoredContestHistory = (): ContestHistoryEntry[] => {
     try {
-      const saved = localStorage.getItem('codebase_contest_history');
+      const saved = localStorage.getItem('codebase_contest_history_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    return [
-      { id: 'seed-1', userId: 'default', contestName: 'LeetCode Weekly Contest 398', platform: 'LC', date: '2026-05-24', rank: 1240, totalParticipants: 22000, problemsSolved: 3, totalProblems: 4, ratingBefore: 1890, ratingAfter: 1912, ratingDelta: 22, notes: 'Missed Q4 hard DP problem. Need to practice more tree DP.' },
-      { id: 'seed-2', userId: 'default', contestName: 'Codeforces Round #1012 (Div.2)', platform: 'CF', date: '2026-05-22', rank: 450, totalParticipants: 9400, problemsSolved: 4, totalProblems: 6, ratingBefore: 1700, ratingAfter: 1756, ratingDelta: 56, notes: 'Strong performance. Solved A-D in first 45 min.' },
-      { id: 'seed-3', userId: 'default', contestName: 'CodeChef Starters 135 (Div.2)', platform: 'CC', date: '2026-05-18', rank: 184, totalParticipants: 4500, problemsSolved: 5, totalProblems: 6, ratingBefore: 1761, ratingAfter: 1845, ratingDelta: 84, notes: 'Best CodeChef performance yet. Only missed final problem.' },
-      { id: 'seed-4', userId: 'default', contestName: 'LeetCode Biweekly Contest 130', platform: 'LC', date: '2026-05-11', rank: 2100, totalParticipants: 18000, problemsSolved: 2, totalProblems: 4, ratingBefore: 1920, ratingAfter: 1890, ratingDelta: -30, notes: 'Bad contest. Got stuck on Q3 binary search variant.' },
-      { id: 'seed-5', userId: 'default', contestName: 'Codeforces Round #1008 (Div.2)', platform: 'CF', date: '2026-05-08', rank: 1200, totalParticipants: 11000, problemsSolved: 3, totalProblems: 6, ratingBefore: 1720, ratingAfter: 1700, ratingDelta: -20, notes: 'C was tricky greedy. D approach was right but TLE on test 15.' },
-      { id: 'seed-6', userId: 'default', contestName: 'AtCoder Beginner Contest 355', platform: 'AC', date: '2026-05-04', rank: 890, totalParticipants: 7000, problemsSolved: 5, totalProblems: 7, ratingBefore: 1060, ratingAfter: 1104, ratingDelta: 44, notes: 'Clean solve through E. F was graph theory beyond current level.' },
-      { id: 'seed-7', userId: 'default', contestName: 'LeetCode Weekly Contest 396', platform: 'LC', date: '2026-04-27', rank: 980, totalParticipants: 20000, problemsSolved: 4, totalProblems: 4, ratingBefore: 1870, ratingAfter: 1920, ratingDelta: 50, notes: 'Perfect contest! All 4 solved. Q4 was segment tree which is my strength.' },
-      { id: 'seed-8', userId: 'default', contestName: 'Codeforces Round #1005 (Div.2)', platform: 'CF', date: '2026-04-20', rank: 650, totalParticipants: 10200, problemsSolved: 4, totalProblems: 6, ratingBefore: 1680, ratingAfter: 1720, ratingDelta: 40, notes: 'Solid performance. D was a nice constructive problem.' }
-    ];
+    return [];
   };
 
   const initialStore = {
@@ -882,7 +873,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       } else {
         const updated = [newEntry, ...get().contestHistory];
         updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        localStorage.setItem('codebase_contest_history_v2', JSON.stringify(updated));
         set({ contestHistory: updated });
       }
     },
@@ -899,7 +890,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
         const updated = get().contestHistory.map((item) =>
           item.id === id ? { ...item, ...entry } : item
         );
-        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        localStorage.setItem('codebase_contest_history_v2', JSON.stringify(updated));
         set({ contestHistory: updated });
       }
     },
@@ -914,7 +905,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
         }
       } else {
         const updated = get().contestHistory.filter((item) => item.id !== id);
-        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        localStorage.setItem('codebase_contest_history_v2', JSON.stringify(updated));
         set({ contestHistory: updated });
       }
     },
@@ -1116,8 +1107,20 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
             .sort((a: Contest, b: Contest) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
             .slice(0, 50);
 
+          const mockUpcomingContests: Contest[] = [
+            { id: 'mock-1', platform: 'LC', name: 'LeetCode Weekly Contest 401', startTime: '2026-06-12T02:30:00.000Z', durationSeconds: 5400, registrationUrl: 'https://leetcode.com' },
+            { id: 'mock-2', platform: 'CF', name: 'Codeforces Round 950 (Div. 2)', startTime: '2026-06-15T14:35:00.000Z', durationSeconds: 7200, registrationUrl: 'https://codeforces.com' },
+            { id: 'mock-3', platform: 'CC', name: 'CodeChef Starters 140', startTime: '2026-06-19T14:30:00.000Z', durationSeconds: 7200, registrationUrl: 'https://codechef.com' },
+            { id: 'mock-4', platform: 'AC', name: 'AtCoder Beginner Contest 360', startTime: '2026-06-21T12:00:00.000Z', durationSeconds: 6000, registrationUrl: 'https://atcoder.jp' },
+            { id: 'mock-5', platform: 'LC', name: 'LeetCode Biweekly Contest 135', startTime: '2026-06-25T14:30:00.000Z', durationSeconds: 5400, registrationUrl: 'https://leetcode.com' },
+            { id: 'mock-6', platform: 'HR', name: 'HackerRank 101 Hack', startTime: '2026-06-28T16:00:00.000Z', durationSeconds: 7200, registrationUrl: 'https://hackerrank.com' },
+            { id: 'mock-7', platform: 'GFG', name: 'GeeksForGeeks Job-A-Thon', startTime: '2026-06-29T14:30:00.000Z', durationSeconds: 9000, registrationUrl: 'https://geeksforgeeks.org' }
+          ];
+
+          const combinedFallback = [...fallbackContests, ...mockUpcomingContests].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
           set((state) => ({
-            contests: fallbackContests,
+            contests: combinedFallback,
             loading: { ...state.loading, contests: false }
           }));
         } catch (fallbackErr) {

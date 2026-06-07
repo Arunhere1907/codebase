@@ -133,11 +133,6 @@ export default function CalendarSection() {
     setReminderModalContest(null);
   };
 
-  const pastContests = [
-    { name: 'LeetCode Weekly Contest 398', rank: '1240 / 22000', delta: '+22', date: '2026-05-24', points: '3/4 solved', rating: 1912 },
-    { name: 'Codeforces Round #1012 (Div.2)', rank: '450 / 9400', delta: '+56', date: '2026-05-22', points: '4/6 solved', rating: 1756 },
-    { name: 'CodeChef Starters 135 (Div.2)', rank: '184 / 4500', delta: '+84', date: '2026-05-18', points: '5/6 solved', rating: 1845 }
-  ];
 
   return (
     <motion.div 
@@ -513,36 +508,6 @@ export default function CalendarSection() {
         </>
       )}
 
-      {/* Historically attended section */}
-      <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-3">
-        <h2 className="text-sm font-sans font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <Award size={16} className="text-emerald-500" /> Past Subscribed Performances ({pastContests.length})
-        </h2>
-        <p className="text-xs text-gray-400 dark:text-white/40">
-          Syncs from platform submissions automatically after each rating update.
-        </p>
-
-        <div className="divide-y divide-gray-100 dark:divide-white/10 text-xs text-gray-700 dark:text-sleek-text">
-          {pastContests.map((p, idx) => (
-            <div key={idx} className="py-3 flex sm:items-center justify-between gap-3 flex-col sm:flex-row">
-              <div>
-                <span className="font-semibold text-gray-900 dark:text-white">{p.name}</span>
-                <span className="text-gray-400 dark:text-white/40 text-[10px] block mt-0.5 font-mono">{p.date} • {p.points}</span>
-              </div>
-              <div className="flex items-center gap-4 text-right font-mono self-end sm:self-center">
-                <div>
-                  <span className="text-[9px] text-gray-400 dark:text-white/40 block">Classified Score</span>
-                  <span className="font-bold text-gray-900 dark:text-white">Rank {p.rank}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-gray-400 dark:text-white/40 block">Delta</span>
-                  <span className="font-semibold text-emerald-500">{p.delta}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </motion.div>
   );
 }
