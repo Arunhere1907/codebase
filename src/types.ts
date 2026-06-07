@@ -170,3 +170,19 @@ export interface Reminder {
   notified: boolean;
 }
 
+export interface ContestHistoryEntry {
+  id: string;
+  userId?: string;
+  contestName: string;
+  platform: 'CF' | 'LC' | 'CC' | 'AC' | 'HR' | 'GFG';
+  date: string; // YYYY-MM-DD
+  rank: number;
+  totalParticipants: number;
+  problemsSolved: number;
+  totalProblems: number;
+  ratingBefore: number;
+  ratingAfter: number;
+  ratingDelta: number;
+  notes: string;
+}
+

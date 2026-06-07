@@ -20,7 +20,8 @@ import {
   AtCoderStats,
   GitHubStats,
   Reminder,
-  PlatformFetchErrors
+  PlatformFetchErrors,
+  ContestHistoryEntry
 } from './types';
 import { 
   onAuthStateChanged,
@@ -55,6 +56,7 @@ interface CodeBaseState {
   user: FirebaseUser | null;
   authLoading: boolean;
   reminders: Reminder[];
+  contestHistory: ContestHistoryEntry[];
   loading: {
     stats: boolean;
     contests: boolean;
@@ -89,6 +91,11 @@ interface CodeBaseState {
   addReminder: (contestId: string, contestName: string, contestStartTime: string, platform: string, offsetMins: number) => Promise<void>;
   removeReminder: (reminderId: string) => Promise<void>;
   markReminderAsNotified: (reminderId: string) => Promise<void>;
+
+  // Contest History Actions
+  addContestHistory: (entry: Omit<ContestHistoryEntry, 'id' | 'userId'>) => Promise<void>;
+  updateContestHistory: (id: string, entry: Partial<ContestHistoryEntry>) => Promise<void>;
+  deleteContestHistory: (id: string) => Promise<void>;
 }
 
 // Default seeded problem logs
@@ -435,6 +442,23 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
     return [];
   };
 
+  const getStoredContestHistory = (): ContestHistoryEntry[] => {
+    try {
+      const saved = localStorage.getItem('codebase_contest_history');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: 'seed-1', userId: 'default', contestName: 'LeetCode Weekly Contest 398', platform: 'LC', date: '2026-05-24', rank: 1240, totalParticipants: 22000, problemsSolved: 3, totalProblems: 4, ratingBefore: 1890, ratingAfter: 1912, ratingDelta: 22, notes: 'Missed Q4 hard DP problem. Need to practice more tree DP.' },
+      { id: 'seed-2', userId: 'default', contestName: 'Codeforces Round #1012 (Div.2)', platform: 'CF', date: '2026-05-22', rank: 450, totalParticipants: 9400, problemsSolved: 4, totalProblems: 6, ratingBefore: 1700, ratingAfter: 1756, ratingDelta: 56, notes: 'Strong performance. Solved A-D in first 45 min.' },
+      { id: 'seed-3', userId: 'default', contestName: 'CodeChef Starters 135 (Div.2)', platform: 'CC', date: '2026-05-18', rank: 184, totalParticipants: 4500, problemsSolved: 5, totalProblems: 6, ratingBefore: 1761, ratingAfter: 1845, ratingDelta: 84, notes: 'Best CodeChef performance yet. Only missed final problem.' },
+      { id: 'seed-4', userId: 'default', contestName: 'LeetCode Biweekly Contest 130', platform: 'LC', date: '2026-05-11', rank: 2100, totalParticipants: 18000, problemsSolved: 2, totalProblems: 4, ratingBefore: 1920, ratingAfter: 1890, ratingDelta: -30, notes: 'Bad contest. Got stuck on Q3 binary search variant.' },
+      { id: 'seed-5', userId: 'default', contestName: 'Codeforces Round #1008 (Div.2)', platform: 'CF', date: '2026-05-08', rank: 1200, totalParticipants: 11000, problemsSolved: 3, totalProblems: 6, ratingBefore: 1720, ratingAfter: 1700, ratingDelta: -20, notes: 'C was tricky greedy. D approach was right but TLE on test 15.' },
+      { id: 'seed-6', userId: 'default', contestName: 'AtCoder Beginner Contest 355', platform: 'AC', date: '2026-05-04', rank: 890, totalParticipants: 7000, problemsSolved: 5, totalProblems: 7, ratingBefore: 1060, ratingAfter: 1104, ratingDelta: 44, notes: 'Clean solve through E. F was graph theory beyond current level.' },
+      { id: 'seed-7', userId: 'default', contestName: 'LeetCode Weekly Contest 396', platform: 'LC', date: '2026-04-27', rank: 980, totalParticipants: 20000, problemsSolved: 4, totalProblems: 4, ratingBefore: 1870, ratingAfter: 1920, ratingDelta: 50, notes: 'Perfect contest! All 4 solved. Q4 was segment tree which is my strength.' },
+      { id: 'seed-8', userId: 'default', contestName: 'Codeforces Round #1005 (Div.2)', platform: 'CF', date: '2026-04-20', rank: 650, totalParticipants: 10200, problemsSolved: 4, totalProblems: 6, ratingBefore: 1680, ratingAfter: 1720, ratingDelta: 40, notes: 'Solid performance. D was a nice constructive problem.' }
+    ];
+  };
+
   const initialStore = {
     currentTab: 'home' as const,
     portfolioMode: 'private' as const,
@@ -446,6 +470,7 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
     fetchErrors: {},
     portfolio: getStoredPortfolio(),
     reminders: getStoredReminders(),
+    contestHistory: getStoredContestHistory(),
     user: null,
     authLoading: true,
     loading: {
@@ -503,6 +528,16 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
                 })
               );
               await Promise.all(promises);
+
+              // 4. Seed contest history
+              const seededHistory = getStoredContestHistory();
+              const historyPromises = seededHistory.map(entry =>
+                setDoc(doc(db, 'users', uid, 'contestHistory', entry.id), {
+                  ...entry,
+                  userId: uid
+                })
+              );
+              await Promise.all(historyPromises);
             } catch (seedErr) {
               console.error("Seeding aborted due to permissions/network: ", seedErr);
             }
@@ -573,8 +608,19 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
             console.error("Realtime reminders sync error:", err);
           });
 
+          const unsubContestHistory = onSnapshot(collection(db, 'users', uid, 'contestHistory'), (colSnap) => {
+            const entries: ContestHistoryEntry[] = [];
+            colSnap.forEach((itemSnap) => {
+              entries.push(itemSnap.data() as ContestHistoryEntry);
+            });
+            entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            set({ contestHistory: entries });
+          }, (err) => {
+            console.error("Realtime contestHistory sync error:", err);
+          });
+
           // Store cleanup references in store context
-          set({ _firestoreSubs: [unsubSettings, unsubProblemLogs, unsubPortfolio, unsubReminders] } as any);
+          set({ _firestoreSubs: [unsubSettings, unsubProblemLogs, unsubPortfolio, unsubReminders, unsubContestHistory] } as any);
         } else {
           // Revert back safely to local user state
           set({ 
@@ -583,7 +629,8 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
             settings: getStoredSettings(),
             problemLogs: getStoredProblemLogs(),
             portfolio: getStoredPortfolio(),
-            reminders: getStoredReminders()
+            reminders: getStoredReminders(),
+            contestHistory: getStoredContestHistory()
           });
         }
       });
@@ -816,6 +863,62 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       }
     },
 
+    // Contest History CRUD Actions
+    addContestHistory: async (entry) => {
+      const user = get().user;
+      const entryId = Date.now().toString();
+      const newEntry: ContestHistoryEntry = {
+        ...entry,
+        id: entryId,
+        userId: user ? user.uid : 'local'
+      };
+
+      if (user) {
+        try {
+          await setDoc(doc(db, 'users', user.uid, 'contestHistory', entryId), newEntry);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/contestHistory/${entryId}`);
+        }
+      } else {
+        const updated = [newEntry, ...get().contestHistory];
+        updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        set({ contestHistory: updated });
+      }
+    },
+
+    updateContestHistory: async (id, entry) => {
+      const user = get().user;
+      if (user) {
+        try {
+          await updateDoc(doc(db, 'users', user.uid, 'contestHistory', id), entry);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}/contestHistory/${id}`);
+        }
+      } else {
+        const updated = get().contestHistory.map((item) =>
+          item.id === id ? { ...item, ...entry } : item
+        );
+        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        set({ contestHistory: updated });
+      }
+    },
+
+    deleteContestHistory: async (id) => {
+      const user = get().user;
+      if (user) {
+        try {
+          await deleteDoc(doc(db, 'users', user.uid, 'contestHistory', id));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/contestHistory/${id}`);
+        }
+      } else {
+        const updated = get().contestHistory.filter((item) => item.id !== id);
+        localStorage.setItem('codebase_contest_history', JSON.stringify(updated));
+        set({ contestHistory: updated });
+      }
+    },
+
     refreshStats: async (force = false) => {
       const { settings, stats, loading } = get();
       if (loading.stats) return;
@@ -936,156 +1039,94 @@ export const useCodeBaseStore = create<CodeBaseState>((set, get) => {
       set((state) => ({ loading: { ...state.loading, contests: true } }));
 
       try {
-        // 1. Try to fetch from Codeforces Official API
-        const cfResponse = await axios.get('https://codeforces.com/api/contest.list', { timeout: 8005 });
-        let cfUpcoming: Contest[] = [];
+        // Fetch aggregated contest data from our serverless API endpoint
+        // which collects from Codeforces API + Kontests.net (LC, CC, AC, HR, GFG)
+        const response = await axios.get('/api/contests', { timeout: 20000 });
         
-        if (cfResponse.data?.status === 'OK') {
-          const list = cfResponse.data.result;
-          cfUpcoming = list
-            .filter((c: any) => c.phase === 'BEFORE')
-            .map((c: any) => ({
-              id: `cf-${c.id}`,
-              platform: 'CF' as const,
-              name: c.name,
-              startTime: new Date(c.startTimeSeconds * 1000).toISOString(),
-              durationSeconds: c.durationSeconds,
-              registrationUrl: `https://codeforces.com/contest/${c.id}`
-            }));
+        let contests: Contest[] = [];
+        
+        if (response.data?.contests && Array.isArray(response.data.contests)) {
+          contests = response.data.contests;
         }
 
-        const baseTime = Date.now();
-        const generateContestTime = (hoursFromNow: number) => {
-          return new Date(baseTime + hoursFromNow * 60 * 60 * 1000).toISOString();
-        };
+        // Filter to only future contests
+        const now = Date.now();
+        contests = contests.filter((c) => {
+          const startMs = new Date(c.startTime).getTime();
+          const endMs = startMs + c.durationSeconds * 1000;
+          return endMs > now; // Include ongoing + upcoming
+        });
 
-        const generatedContests: Contest[] = [
-          {
-            id: 'lc-weekly-402',
-            platform: 'LC',
-            name: 'LeetCode Weekly Contest 412',
-            startTime: generateContestTime(32), // In 32 hrs
-            durationSeconds: 5400, // 1.5 hrs
-            registrationUrl: 'https://leetcode.com/contest'
-          },
-          {
-            id: 'lc-biweekly-133',
-            platform: 'LC',
-            name: 'LeetCode Biweekly Contest 140',
-            startTime: generateContestTime(8), // In 8 hrs (soon!)
-            durationSeconds: 5400,
-            registrationUrl: 'https://leetcode.com/contest'
-          },
-          {
-            id: 'cc-starters-138',
-            platform: 'CC',
-            name: 'CodeChef Starters 142 (Div 1, 2, 3, 4)',
-            startTime: generateContestTime(54), // In 54 hrs
-            durationSeconds: 7200, // 2 hrs
-            registrationUrl: 'https://www.codechef.com/contests'
-          },
-          {
-            id: 'ac-abc-357',
-            platform: 'AC',
-            name: 'AtCoder Beginner Contest 361',
-            startTime: generateContestTime(22), // In 22 hrs
-            durationSeconds: 6000, // 100 mins
-            registrationUrl: 'https://atcoder.jp/contests'
-          },
-          {
-            id: 'hr-codesprint',
-            platform: 'HR',
-            name: 'HackerRank University CodeSprint',
-            startTime: generateContestTime(120), // In 5 days
-            durationSeconds: 86400, // 24 hrs
-            registrationUrl: 'https://www.hackerrank.com/contests'
-          },
-          {
-            id: 'gfg-weekly-152',
-            platform: 'GFG',
-            name: 'GeeksforGeeks Weekly Coding Contest 158',
-            startTime: generateContestTime(48), // In 2 days
-            durationSeconds: 5400, // 1.5 hrs
-            registrationUrl: 'https://practice.geeksforgeeks.org/events/rec/gfg-weekly-coding-contest'
-          }
-        ];
-
-        let combined = [...cfUpcoming, ...generatedContests];
-        combined.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        combined = combined.slice(0, 15);
+        // Sort by start time ascending
+        contests.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
         set((state) => ({
-          contests: combined,
+          contests,
           loading: { ...state.loading, contests: false }
         }));
       } catch (err) {
-        const baseTime = Date.now();
-        const generateContestTime = (hoursFromNow: number) => {
-          return new Date(baseTime + hoursFromNow * 60 * 60 * 1000).toISOString();
-        };
-        const fallbacks: Contest[] = [
-          {
-            id: 'cf-round-993',
-            platform: 'CF',
-            name: 'Codeforces Round #1015 (Div. 2)',
-            startTime: generateContestTime(14),
-            durationSeconds: 7200,
-            registrationUrl: 'https://codeforces.com/contests'
-          },
-          {
-            id: 'lc-biweekly-140',
-            platform: 'LC',
-            name: 'LeetCode Biweekly Contest 140',
-            startTime: generateContestTime(8),
-            durationSeconds: 5400,
-            registrationUrl: 'https://leetcode.com/contest'
-          },
-          {
-            id: 'ac-abc-361',
-            platform: 'AC',
-            name: 'AtCoder Beginner Contest 361',
-            startTime: generateContestTime(22),
-            durationSeconds: 6000,
-            registrationUrl: 'https://atcoder.jp/contests'
-          },
-          {
-            id: 'cf-educational-167',
-            platform: 'CF',
-            name: 'Educational Codeforces Round 172',
-            startTime: generateContestTime(42),
-            durationSeconds: 7200,
-            registrationUrl: 'https://codeforces.com/contests'
-          },
-          {
-            id: 'lc-weekly-412',
-            platform: 'LC',
-            name: 'LeetCode Weekly Contest 412',
-            startTime: generateContestTime(32),
-            durationSeconds: 5400,
-            registrationUrl: 'https://leetcode.com/contest'
-          },
-          {
-            id: 'cc-starters-142',
-            platform: 'CC',
-            name: 'CodeChef Starters 142',
-            startTime: generateContestTime(54),
-            durationSeconds: 7200,
-            registrationUrl: 'https://www.codechef.com/contests'
-          },
-          {
-            id: 'gfg-weekly-158',
-            platform: 'GFG',
-            name: 'GFG Weekly Coding Contest 158',
-            startTime: generateContestTime(48),
-            durationSeconds: 5400,
-            registrationUrl: 'https://practice.geeksforgeeks.org/'
-          }
-        ];
-        fallbacks.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-        set((state) => ({
-          contests: fallbacks,
-          loading: { ...state.loading, contests: false }
-        }));
+        console.error('Contest refresh error, attempting direct Kontests.net fallback:', err);
+
+        // Fallback: fetch directly from Kontests.net and Codeforces API
+        try {
+          const endpoints = [
+            { url: 'https://kontests.net/api/v1/all', transform: true },
+          ];
+          
+          const kontestsResponse = await axios.get('https://kontests.net/api/v1/all', { timeout: 12000 });
+          
+          const platformMap: Record<string, Contest['platform']> = {
+            'CodeForces': 'CF',
+            'CodeForces::Gym': 'CF',
+            'LeetCode': 'LC',
+            'CodeChef': 'CC',
+            'AtCoder': 'AC',
+            'HackerRank': 'HR',
+            'GeeksforGeeks': 'GFG',
+          };
+          
+          const platformUrls: Record<string, string> = {
+            CF: 'https://codeforces.com/contests',
+            LC: 'https://leetcode.com/contest/',
+            CC: 'https://www.codechef.com/contests',
+            AC: 'https://atcoder.jp/contests',
+            HR: 'https://www.hackerrank.com/contests',
+            GFG: 'https://www.geeksforgeeks.org/events',
+          };
+
+          const now = Date.now();
+          const fallbackContests: Contest[] = kontestsResponse.data
+            .filter((c: any) => {
+              const platform = platformMap[c.site];
+              if (!platform) return false;
+              const endTime = new Date(c.end_time).getTime();
+              return endTime > now;
+            })
+            .map((c: any, idx: number) => {
+              const platform = platformMap[c.site]!;
+              return {
+                id: `${platform.toLowerCase()}-fallback-${idx}`,
+                platform,
+                name: c.name,
+                startTime: new Date(c.start_time).toISOString(),
+                durationSeconds: parseInt(c.duration, 10) || 0,
+                registrationUrl: c.url || platformUrls[platform] || '',
+              };
+            })
+            .sort((a: Contest, b: Contest) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+            .slice(0, 50);
+
+          set((state) => ({
+            contests: fallbackContests,
+            loading: { ...state.loading, contests: false }
+          }));
+        } catch (fallbackErr) {
+          console.error('All contest fetching failed:', fallbackErr);
+          set((state) => ({
+            contests: [],
+            loading: { ...state.loading, contests: false }
+          }));
+        }
       }
     }
   };

@@ -6,7 +6,7 @@ import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const PLATFORMS = ['codeforces', 'leetcode', 'codechef', 'atcoder', 'github'] as const;
+const PLATFORMS = ['codeforces', 'leetcode', 'codechef', 'atcoder', 'github', 'contests'] as const;
 
 function parseQuery(url: string): VercelRequest['query'] {
   const parsed = new URL(url, 'http://localhost');

@@ -23,12 +23,39 @@ import {
   Edit2
 } from 'lucide-react';
 import { useCodeBaseStore } from '../store';
-import { ProblemLog, Platform, Difficulty, ProblemStatus } from '../types';
+import { ProblemLog, Platform, Difficulty, ProblemStatus, ContestHistoryEntry } from '../types';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  Cell,
+  ReferenceLine,
+  LineChart,
+  Line
+} from 'recharts';
 
 export default function TrackerSection() {
-  const { problemLogs, addProblemLog, deleteProblemLog, updateProblemLog } = useCodeBaseStore();
+  const { 
+    problemLogs, addProblemLog, deleteProblemLog, updateProblemLog,
+    contestHistory, addContestHistory, updateContestHistory, deleteContestHistory 
+  } = useCodeBaseStore();
+  
+  const [activeTab, setActiveTab] = useState<'problems' | 'contests'>('problems');
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isContestModalOpen, setIsContestModalOpen] = useState(false);
+  const [editContestId, setEditContestId] = useState<string | null>(null);
+  
+  // Contest form state
+  const [historyForm, setHistoryForm] = useState({
+    contestName: '', platform: 'LC' as ContestHistoryEntry['platform'],
+    date: format(new Date(), 'yyyy-MM-dd'), rank: 0, totalParticipants: 0,
+    problemsSolved: 0, totalProblems: 0, ratingBefore: 0, ratingAfter: 0, notes: ''
+  });
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,6 +236,105 @@ export default function TrackerSection() {
     { name: 'Binary Search', count: problemLogs.filter(p => p.topicTags.includes('Binary Search')).length },
   ];
 
+  // Consistency Score (0-100)
+  const consistencyScore = useMemo(() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+
+    const contestsThisWeek = (contestHistory || []).filter(e => {
+      const d = new Date(e.date);
+      return d >= weekStart && d <= weekEnd;
+    }).length;
+    const contestScore = Math.min(contestsThisWeek * 15, 30);
+
+    const problemsSolvedThisWeek = (contestHistory || [])
+      .filter(e => {
+        const d = new Date(e.date);
+        return d >= weekStart && d <= weekEnd;
+      })
+      .reduce((sum, e) => sum + e.problemsSolved, 0);
+    const problemScore = Math.min(Math.round((problemsSolvedThisWeek / 8) * 35), 35);
+
+    let streakWeeks = 0;
+    let checkDate = new Date(weekStart);
+    for (let w = 0; w < 8; w++) {
+      const wStart = startOfWeek(checkDate, { weekStartsOn: 1 });
+      const wEnd = endOfWeek(checkDate, { weekStartsOn: 1 });
+      const hasContest = (contestHistory || []).some(e => {
+        const d = new Date(e.date);
+        return d >= wStart && d <= wEnd;
+      });
+      if (hasContest) streakWeeks++;
+      else if (w > 0) break;
+      checkDate = new Date(wStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+    const streakScore = Math.min(Math.round((streakWeeks / 4) * 35), 35);
+
+    return Math.min(contestScore + problemScore + streakScore, 100);
+  }, [contestHistory]);
+
+  const ratingDeltaChartData = useMemo(() => {
+    return [...(contestHistory || [])]
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-12)
+      .map(entry => ({
+        name: entry.contestName.length > 15 ? entry.contestName.substring(0, 15) + '...' : entry.contestName,
+        fullName: entry.contestName,
+        delta: entry.ratingDelta,
+        platform: entry.platform,
+        date: entry.date,
+        ratingAfter: entry.ratingAfter
+      }));
+  }, [contestHistory]);
+
+  const handleContestSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const ratingDelta = historyForm.ratingAfter - historyForm.ratingBefore;
+    const payload = { ...historyForm, ratingDelta };
+
+    if (editContestId) {
+      updateContestHistory(editContestId, payload);
+    } else {
+      addContestHistory(payload);
+    }
+    setIsContestModalOpen(false);
+    setEditContestId(null);
+    setHistoryForm({
+      contestName: '', platform: 'LC', date: format(new Date(), 'yyyy-MM-dd'),
+      rank: 0, totalParticipants: 0, problemsSolved: 0, totalProblems: 0,
+      ratingBefore: 0, ratingAfter: 0, notes: ''
+    });
+  };
+
+  const openEditContest = (entry: ContestHistoryEntry) => {
+    setEditContestId(entry.id);
+    setHistoryForm({
+      contestName: entry.contestName, platform: entry.platform, date: entry.date,
+      rank: entry.rank, totalParticipants: entry.totalParticipants,
+      problemsSolved: entry.problemsSolved, totalProblems: entry.totalProblems,
+      ratingBefore: entry.ratingBefore, ratingAfter: entry.ratingAfter, notes: entry.notes
+    });
+    setIsContestModalOpen(true);
+  };
+
+  const DeltaTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    return (
+      <div className="p-2.5 bg-zinc-950 border border-white/10 rounded-lg shadow-xl text-xs font-sans space-y-1 max-w-[220px]">
+        <p className="font-bold text-white leading-tight">{d.fullName}</p>
+        <p className="text-white/40 font-mono text-[10px]">{d.date} • {d.platform}</p>
+        <div className="flex items-center gap-2 pt-0.5">
+          <span className={`font-mono font-bold text-sm ${d.delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {d.delta >= 0 ? '+' : ''}{d.delta}
+          </span>
+          <span className="text-white/50">→ {d.ratingAfter}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 8 }}
@@ -228,17 +354,52 @@ export default function TrackerSection() {
           </p>
         </div>
 
-        <button
-          id="add-log-btn"
-          onClick={handleAddNewClick}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-sans text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-[0.97]"
-        >
-          <Plus size={16} /> Log New Solve
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center p-1 bg-gray-100 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+            <button
+              onClick={() => setActiveTab('problems')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeTab === 'problems' ? 'bg-white dark:bg-sleek-card shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Problem Logs
+            </button>
+            <button
+              onClick={() => setActiveTab('contests')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                activeTab === 'contests' ? 'bg-white dark:bg-sleek-card shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Contest History
+            </button>
+          </div>
+
+          <button
+            id="add-log-btn"
+            onClick={activeTab === 'problems' ? handleAddNewClick : () => {
+              setEditContestId(null);
+              setHistoryForm({
+                contestName: '', platform: 'LC', date: format(new Date(), 'yyyy-MM-dd'),
+                rank: 0, totalParticipants: 0, problemsSolved: 0, totalProblems: 0,
+                ratingBefore: 0, ratingAfter: 0, notes: ''
+              });
+              setIsContestModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-sans text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-[0.97]"
+          >
+            <Plus size={16} /> {activeTab === 'problems' ? 'Log Solve' : 'Log Contest'}
+          </button>
+        </div>
       </div>
 
       {/* Stats row KPI overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="p-4 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl">
+          <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 uppercase tracking-wider block">Consistency Score</span>
+          <span className={`text-2xl font-mono font-bold block mt-1 ${consistencyScore >= 80 ? 'text-emerald-500' : consistencyScore >= 50 ? 'text-blue-500' : 'text-amber-500'}`}>
+            {consistencyScore} <span className="text-xs text-gray-400">/ 100</span>
+          </span>
+        </div>
         <div className="p-4 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl">
           <span className="text-[10px] font-mono text-gray-400 dark:text-white/40 uppercase tracking-wider block">Solved This Week</span>
           <span className="text-2xl font-mono font-bold text-gray-900 dark:text-white block mt-1">{trackerMeta.weekCount}</span>
@@ -261,10 +422,12 @@ export default function TrackerSection() {
         </div>
       </div>
 
-      {/* Grid: Topic Heatmap & Revisit Queue */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {activeTab === 'problems' ? (
+        <>
+          {/* Grid: Topic Heatmap & Revisit Queue */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* DSA Topic Heatmap */}
+            {/* DSA Topic Heatmap */}
         <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-3 lg:col-span-2">
           <h2 className="text-sm font-sans font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <BookOpen size={16} className="text-indigo-500" /> Topic Practice Distribution
@@ -545,6 +708,82 @@ export default function TrackerSection() {
           </table>
         </div>
       </div>
+        </>
+      ) : (
+        <>
+          {/* Contest History Tab */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Rating Delta Chart */}
+            <div className="p-5 bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl space-y-3 lg:col-span-3">
+              <h2 className="text-sm font-sans font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <TrendingUp size={16} className="text-blue-500" /> Rating Delta Chart (Last 12 Contests)
+              </h2>
+              <div className="h-64 mt-4 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ratingDeltaChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6B7280' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} />
+                    <RechartsTooltip content={<DeltaTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                    <ReferenceLine y={0} stroke="#4B5563" />
+                    <Bar dataKey="delta" radius={[4, 4, 0, 0]}>
+                      {ratingDeltaChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.delta >= 0 ? '#10B981' : '#EF4444'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl overflow-hidden shadow-sm mt-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[850px]">
+                <thead>
+                  <tr className="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/10 text-[10px] font-mono text-gray-400 dark:text-white/40 uppercase tracking-wider">
+                    <th className="py-3 px-4 font-semibold">Contest</th>
+                    <th className="py-3 px-4 font-semibold">Platform</th>
+                    <th className="py-3 px-4 font-semibold">Date</th>
+                    <th className="py-3 px-4 font-semibold">Rank</th>
+                    <th className="py-3 px-4 font-semibold">Solved</th>
+                    <th className="py-3 px-4 font-semibold">Delta</th>
+                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-white/10 w-full text-xs">
+                  {(!contestHistory || contestHistory.length === 0) ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-500 font-sans">No contest history logged yet.</td>
+                    </tr>
+                  ) : (
+                    [...contestHistory].sort((a,b)=>new Date(b.date).getTime() - new Date(a.date).getTime()).map(log => (
+                      <tr key={log.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors">
+                        <td className="py-3.5 px-4 font-sans text-gray-900 dark:text-zinc-100">
+                          <span className="font-semibold block">{log.contestName}</span>
+                          {log.notes && <span className="text-[10px] text-gray-400 block mt-0.5 truncate max-w-[200px]">{log.notes}</span>}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-gray-500">{log.platform}</td>
+                        <td className="py-3.5 px-4 font-mono text-gray-400">{log.date}</td>
+                        <td className="py-3.5 px-4 font-mono text-gray-900 dark:text-white">{log.rank} <span className="text-gray-400 text-[10px]">/ {log.totalParticipants}</span></td>
+                        <td className="py-3.5 px-4 font-mono font-medium">{log.problemsSolved} <span className="text-gray-400 text-[10px]">/ {log.totalProblems}</span></td>
+                        <td className={`py-3.5 px-4 font-mono font-bold ${log.ratingDelta >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {log.ratingDelta >= 0 ? '+' : ''}{log.ratingDelta}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => openEditContest(log)} className="p-1 text-gray-400 hover:text-blue-500"><Edit2 size={14} /></button>
+                            <button onClick={() => deleteContestHistory(log.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal Overlay / Popup solve Logger */}
       <AnimatePresence>
@@ -719,6 +958,168 @@ export default function TrackerSection() {
 
               </form>
 
+            </motion.div>
+          </div>
+        )}
+
+        {isContestModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="bg-white dark:bg-sleek-card border border-gray-100 dark:border-white/10 rounded-xl max-w-xl w-full overflow-hidden shadow-2xl relative p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-white/10 pb-3">
+                <h3 className="text-base font-sans font-bold text-gray-900 dark:text-white">
+                  {editContestId ? 'Edit Contest Log' : 'Log Contest Result'}
+                </h3>
+                <button
+                  onClick={() => setIsContestModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200 text-lg font-sans"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={handleContestSubmit} className="space-y-4 font-sans text-xs">
+                <div className="space-y-1">
+                  <label className="text-gray-500 dark:text-zinc-400 font-medium">Contest Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={historyForm.contestName}
+                    onChange={(e) => setHistoryForm({ ...historyForm, contestName: e.target.value })}
+                    placeholder="e.g. LeetCode Weekly Contest 400"
+                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Platform</label>
+                    <select
+                      value={historyForm.platform}
+                      onChange={(e) => setHistoryForm({ ...historyForm, platform: e.target.value as any })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-155 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    >
+                      <option value="LC">LeetCode</option>
+                      <option value="CF">Codeforces</option>
+                      <option value="CC">CodeChef</option>
+                      <option value="AC">AtCoder</option>
+                      <option value="HR">HackerRank</option>
+                      <option value="GFG">GeeksForGeeks</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={historyForm.date}
+                      onChange={(e) => setHistoryForm({ ...historyForm, date: e.target.value })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Rank</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.rank}
+                      onChange={(e) => setHistoryForm({ ...historyForm, rank: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Total Participants</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.totalParticipants}
+                      onChange={(e) => setHistoryForm({ ...historyForm, totalParticipants: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Problems Solved</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.problemsSolved}
+                      onChange={(e) => setHistoryForm({ ...historyForm, problemsSolved: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Total Problems</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.totalProblems}
+                      onChange={(e) => setHistoryForm({ ...historyForm, totalProblems: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Rating Before</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.ratingBefore}
+                      onChange={(e) => setHistoryForm({ ...historyForm, ratingBefore: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-500 dark:text-zinc-400 font-medium">Rating After</label>
+                    <input
+                      type="number"
+                      required
+                      value={historyForm.ratingAfter}
+                      onChange={(e) => setHistoryForm({ ...historyForm, ratingAfter: Number(e.target.value) })}
+                      className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-gray-500 dark:text-zinc-400 font-medium">Notes & Takeaways</label>
+                  <textarea
+                    rows={3}
+                    value={historyForm.notes}
+                    onChange={(e) => setHistoryForm({ ...historyForm, notes: e.target.value })}
+                    placeholder="e.g. Could have solved Q3 faster if I recognized binary search..."
+                    className="w-full bg-gray-50 dark:bg-white/5 border border-gray-150 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsContestModalOpen(false)}
+                    className="px-4 py-2 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/60 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm"
+                  >
+                    Save Contest Log
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
